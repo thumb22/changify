@@ -1,123 +1,63 @@
-# keyboards/reply.py
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
-def get_main_keyboard(language="uk"):
+
+def get_main_keyboard():
     """
-    Создает основную клавиатуру для пользователя в зависимости от выбранного языка
+    Створює основну клавіатуру для користувача
     """
-    button_texts = {
-        "uk": {
-            "exchange": "🔄 Обмін валют",
-            "rates": "📊 Курси валют",
-            "history": "📋 Iсторія",
-            "profile": "👤 Профіль",
-            "support": "🆘 Підтримка"
-        }
-    }
-    
-    # Выбираем нужный язык или дефолтный
-    lang_buttons = button_texts.get(language, button_texts["uk"])
-    
     builder = ReplyKeyboardBuilder()
     
-    # Добавляем кнопки в первый ряд
     builder.row(
-        KeyboardButton(text=lang_buttons["exchange"]),
-        KeyboardButton(text=lang_buttons["rates"])
+        KeyboardButton(text="🔄 Обмін валют"),
+        KeyboardButton(text="📊 Курси валют")
     )
     
-    # Добавляем кнопки во второй ряд
     builder.row(
-        KeyboardButton(text=lang_buttons["history"]),
-        KeyboardButton(text=lang_buttons["profile"])
+        KeyboardButton(text="📋 Історія"),
+        KeyboardButton(text="👤 Профіль")
     )
     
-    # Добавляем кнопку поддержки
-    builder.row(KeyboardButton(text=lang_buttons["support"]))
+    builder.row(KeyboardButton(text="🆘 Підтримка"))
     
     return builder.as_markup(resize_keyboard=True)
 
 
-def get_manager_keyboard(language="uk"):
+def get_manager_keyboard():
     """
-    Создает клавиатуру для менеджера
+    Створює клавіатуру для менеджера
     """
-    # Локализация кнопок
-    button_texts = {
-        "uk": {
-            "orders": "📝 Заявки",
-            "completed": "✅ Завершені",
-            "stats": "📈 Статистика",
-            "profile": "👤 Профіль"
-        },
-        "en": {
-            "orders": "📝 Orders",
-            "completed": "✅ Completed",
-            "stats": "📈 Statistics",
-            "profile": "👤 Profile"
-        },
-        "ru": {
-            "orders": "📝 Заявки",
-            "completed": "✅ Завершенные",
-            "stats": "📈 Статистика",
-            "profile": "👤 Профиль"
-        }
-    }
-    
-    # Выбираем нужный язык или дефолтный
-    lang_buttons = button_texts.get(language, button_texts["uk"])
-    
     builder = ReplyKeyboardBuilder()
     
-    # Добавляем кнопки в первый ряд
     builder.row(
-        KeyboardButton(text=lang_buttons["orders"]),
-        KeyboardButton(text=lang_buttons["completed"])
+        KeyboardButton(text="📝 Заявки"),
+        KeyboardButton(text="✅ Завершені")
     )
     
-    # Добавляем кнопки во второй ряд
     builder.row(
-        KeyboardButton(text=lang_buttons["stats"]),
-        KeyboardButton(text=lang_buttons["profile"])
+        KeyboardButton(text="📈 Статистика"),
+        KeyboardButton(text="👤 Профіль")
     )
     
     return builder.as_markup(resize_keyboard=True)
 
 
-def get_admin_keyboard(language="uk"):
+def get_admin_keyboard():
     """
-    Создает клавиатуру для администратора
+    Створює клавіатуру для адміністратора
     """
-    # Локализация кнопок
-    button_texts = {
-        "uk": {
-            "orders": "📝 Заявки",
-            "users": "👥 Користувачі",
-            "rates": "💱 Курси валют",
-            "settings": "⚙️ Налаштування",
-            "stats": "📊 Статистика"
-        },
-    }
-    
-    # Выбираем нужный язык или дефолтный
-    lang_buttons = button_texts.get(language, button_texts["uk"])
-    
     builder = ReplyKeyboardBuilder()
     
-    # Добавляем кнопки в первый ряд
     builder.row(
-        KeyboardButton(text=lang_buttons["orders"]),
-        KeyboardButton(text=lang_buttons["users"])
+        KeyboardButton(text="📝 Заявки"),
+        KeyboardButton(text="👥 Користувачі")
     )
     
-    # Добавляем кнопки во второй ряд
     builder.row(
-        KeyboardButton(text=lang_buttons["rates"]),
-        KeyboardButton(text=lang_buttons["settings"])
+        KeyboardButton(text="💱 Курси валют"),
+        KeyboardButton(text="⚙️ Налаштування")
     )
     
-    # Добавляем кнопку статистики
-    builder.row(KeyboardButton(text=lang_buttons["stats"]))
+    builder.row(KeyboardButton(text="📊 Статистика"))
     
     return builder.as_markup(resize_keyboard=True)

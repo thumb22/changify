@@ -33,10 +33,8 @@ def setup_initial_data(session):
             session.commit()
             logger.info("Добавлены начальные валюты")
         
-        # Получаем ID валюты UAH для создания банков
         uah = session.query(Currency).filter_by(code="UAH").first()
         
-        # Добавляем банки для UAH
         if uah and session.query(Bank).count() == 0:
             banks = [
                 Bank(name="ПриватБанк", currency_id=uah.id),
@@ -47,12 +45,11 @@ def setup_initial_data(session):
             session.commit()
             logger.info("Добавлены начальные банки")
         
-        # Добавляем начальные настройки
         if session.query(Setting).count() == 0:
             settings = [
                 Setting(key="bot_name", value="Changify", description="Название бота"),
-                Setting(key="admin_chat_id", value="", description="ID чата администратора"),
-                Setting(key="manager_chat_id", value="", description="ID чата менеджеров"),
+                Setting(key="admin_chat_id", value="7459108907", description="ID чата администратора"),
+                Setting(key="manager_chat_id", value="771451766", description="ID чата менеджеров"),
                 Setting(key="welcome_message", value="Добро пожаловать в Changify! Бот для P2P-обмена криптовалют и фиатных валют.", description="Приветственное сообщение")
             ]
             session.add_all(settings)
@@ -67,15 +64,12 @@ def setup_initial_data(session):
 def create_admin_user(session, telegram_id, username=None, first_name=None, last_name=None):
     """Создает пользователя с правами администратора"""
     try:
-        # Проверяем, существует ли пользователь
         user = session.query(User).filter_by(telegram_id=telegram_id).first()
         
         if user:
-            # Если пользователь существует, обновляем роль
             user.role = UserRole.ADMIN
             logger.info(f"Пользователь {telegram_id} обновлен до администратора")
         else:
-            # Создаем нового пользователя с ролью администратора
             user = User(
                 telegram_id=telegram_id,
                 username=username,
@@ -98,13 +92,11 @@ def get_or_create_user(session, user_data):
         user = session.query(User).filter_by(telegram_id=user_data['telegram_id']).first()
         
         if not user:
-            # Создаем нового пользователя
             user = User(
                 telegram_id=user_data['telegram_id'],
                 username=user_data.get('username'),
                 first_name=user_data.get('first_name'),
-                last_name=user_data.get('last_name'),
-                language_code=user_data.get('language_code', 'uk')
+                last_name=user_data.get('last_name')
             )
             session.add(user)
             session.commit()
