@@ -3,57 +3,63 @@ import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.enums import ParseMode
+from aiogram.client.default import DefaultBotProperties
 
 import config
 from database.db_operations import get_engine, init_db, get_session, setup_initial_data
 from database.models import User, UserRole
+from keyboards.reply import get_main_keyboard, get_manager_keyboard, get_admin_keyboard
+from middlewares.user_middleware import UserMiddleware
+from utils.logger import setup_logger
+from utils.error_handler import handle_errors
+logger = setup_logger(__name__)
 
-logging.basicConfig(
-    level=config.LOG_LEVELS.get(config.LOG_LEVEL, logging.INFO),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    filename=config.LOG_FILE,
-    filemode='a'
+bot = Bot(
+    token=config.BOT_TOKEN,
+    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
 )
-logger = logging.getLogger(__name__)
-
-bot = Bot(token=config.BOT_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
+# Инициализация базы данных
 engine = get_engine(config.DATABASE_URL)
 init_db(engine)
 db_session = get_session(engine)
 setup_initial_data(db_session)
+db_session.close()
+
+# Регистрация middleware
+dp.message.middleware(UserMiddleware(engine))
+dp.callback_query.middleware(UserMiddleware(engine))
 
 
 @dp.message(Command("start"))
-async def cmd_start(message: types.Message):
-    try:
-        user_data = {
-            'telegram_id': message.from_user.id,
-            'username': message.from_user.username,
-            'first_name': message.from_user.first_name,
-            'last_name': message.from_user.last_name
-        }
-        
-        session = get_session(engine)
-        from database.db_operations import get_or_create_user
-        user = get_or_create_user(session, user_data)
-        session.close()
-        
-        await message.answer(
-            f"👋 Привіт, {message.from_user.first_name}!\n\n"
-            f"Ласкаво просимо до Changify - бота для P2P-обміну криптовалют та фіатних валют.\n\n"
-            f"Щоб почати, оберіть потрібну дію в меню."
-        )
-        
-    except Exception as e:
-        logger.error(f"Помилка в обробнику /start: {e}")
-        await message.answer("Сталася помилка. Спробуйте ще раз пізніше.")
+@handle_errors
+async def cmd_start(message: types.Message, db_user: dict):
+    """Обработчик команды /start"""
+    # db_user теперь передается через data из middleware
+    # Определяем, какую клавиатуру показать в зависимости от роли
+    if db_user['role'] == UserRole.ADMIN:
+        keyboard = get_admin_keyboard()
+    elif db_user['role'] == UserRole.MANAGER:
+        keyboard = get_manager_keyboard()
+    else:
+        keyboard = get_main_keyboard()
+    
+    # Отправляем приветственное сообщение
+    await message.answer(
+        f"👋 Привіт, {message.from_user.first_name}!\n\n"
+        f"Ласкаво просимо до Changify - бота для P2P-обміну криптовалют та фіатних валют.\n\n"
+        f"Щоб почати, оберіть потрібну дію в меню.",
+        reply_markup=keyboard
+    )
 
 
 @dp.message(Command("help"))
+@handle_errors
 async def cmd_help(message: types.Message):
+    """Обработчик команды /help"""
     help_text = (
         "📚 <b>Основні команди бота:</b>\n\n"
         "/start - почати роботу з ботом\n"
@@ -63,24 +69,28 @@ async def cmd_help(message: types.Message):
         "/history - історія ваших заявок\n\n"
         "Якщо у вас виникли питання, зверніться до адміністратора бота."
     )
-    await message.answer(help_text, parse_mode="HTML")
+    await message.answer(help_text)
 
 
 @dp.message()
+@handle_errors
 async def unknown_message(message: types.Message):
-    """Обробник невідомих повідомлень"""
+    """Обработчик неизвестных команд и сообщений"""
+    # В будущем здесь будет обработка кнопок из reply-клавиатуры
     await message.answer("Я не розумію цю команду. Використовуйте /help для перегляду доступних команд.")
 
 
 async def on_startup():
-    """Дії при запуску бота"""
+    """Действия при запуске бота"""
     logger.info("Бот запущений")
     
     session = get_session(engine)
+    # Создаем админов из конфига
     for admin_id in config.ADMIN_IDS:
         from database.db_operations import create_admin_user
         create_admin_user(session, admin_id)
     
+    # Назначаем менеджеров из конфига
     for manager_id in config.MANAGER_IDS:
         user = session.query(User).filter_by(telegram_id=manager_id).first()
         if user:
@@ -94,24 +104,26 @@ async def on_startup():
 
 
 async def on_shutdown():
-    """Дії при зупинці бота"""
+    """Действия при остановке бота"""
     logger.info("Бот зупинений")
-    if db_session:
-        db_session.close()
 
 
 async def main():
-    """Основна функція запуску бота"""
+    """Основная функция запуска бота"""
     try:
         await on_startup()
         await dp.start_polling(bot)
     finally:
         await on_shutdown()
 
-
 if __name__ == "__main__":
     try:
-        asyncio.run(main())
+        # Проверяем, не запущен ли уже цикл событий
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            logger.warning("Event loop is already running, skipping main()")
+        else:
+            asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         logger.info("Бот зупинений користувачем")
     except Exception as e:
