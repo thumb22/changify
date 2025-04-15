@@ -1,4 +1,3 @@
-# main.py
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher, types
@@ -9,7 +8,6 @@ import config
 from database.db_operations import get_engine, init_db, get_session, setup_initial_data
 from database.models import User, UserRole
 
-# Настройка логирования
 logging.basicConfig(
     level=config.LOG_LEVELS.get(config.LOG_LEVEL, logging.INFO),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -18,19 +16,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Настройка бота
 bot = Bot(token=config.BOT_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-# Инициализация базы данных
 engine = get_engine(config.DATABASE_URL)
 init_db(engine)
 db_session = get_session(engine)
 setup_initial_data(db_session)
 
 
-# Обработчик команды /start
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     try:

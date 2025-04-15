@@ -1,8 +1,7 @@
 # database/models.py
 from datetime import datetime
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Text, Enum
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.orm import relationship, sessionmaker, declarative_base
 import enum
 
 Base = declarative_base()
@@ -13,12 +12,12 @@ class UserRole(enum.Enum):
     ADMIN = "admin"
 
 class OrderStatus(enum.Enum):
-    CREATED = "created"                # Создана
-    AWAITING_PAYMENT = "awaiting_payment"  # Ожидает оплаты
-    PAYMENT_CONFIRMED = "payment_confirmed"  # Пользователь подтвердил оплату
-    PROCESSING = "processing"          # Проверяется менеджером
-    COMPLETED = "completed"            # Завершена
-    CANCELLED = "cancelled"            # Отменена
+    CREATED = "created"
+    AWAITING_PAYMENT = "awaiting_payment"
+    PAYMENT_CONFIRMED = "payment_confirmed"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
 
 class CurrencyType(enum.Enum):
     CRYPTO = "crypto"
@@ -35,10 +34,9 @@ class User(Base):
     role = Column(Enum(UserRole), default=UserRole.USER)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_active = Column(DateTime, default=datetime.utcnow)
-    language_code = Column(String(10), default='uk')
     
-    # Связанные объекты
-    orders = relationship("Order", back_populates="user")
+    orders = relationship("Order", back_populates="user", foreign_keys="Order.user_id")
+    managed_orders = relationship("Order", back_populates="manager", foreign_keys="Order.manager_id")
     
     def __repr__(self):
         return f"<User(id={self.id}, telegram_id={self.telegram_id}, username={self.username})>"
@@ -59,10 +57,9 @@ class Bank(Base):
     __tablename__ = 'banks'
     
     id = Column(Integer, primary_key=True)
-    name = Column(String(50), nullable=False)  # ПриватБанк, Монобанк, ПУМБ
-    currency_id = Column(Integer, ForeignKey('currencies.id'))
+    name = Column(String(50), nullable=False)
     enabled = Column(Boolean, default=True)
-    
+    currency_id = Column(Integer, ForeignKey('currencies.id'))
     currency = relationship("Currency")
     
     def __repr__(self):
@@ -90,21 +87,19 @@ class Order(Base):
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     from_currency_id = Column(Integer, ForeignKey('currencies.id'), nullable=False)
     to_currency_id = Column(Integer, ForeignKey('currencies.id'), nullable=False)
-    amount_from = Column(Float, nullable=False)  # Сумма отправления
-    amount_to = Column(Float, nullable=False)    # Сумма получения
-    rate = Column(Float, nullable=False)         # Зафиксированный курс
+    amount_from = Column(Float, nullable=False)
+    amount_to = Column(Float, nullable=False)
+    rate = Column(Float, nullable=False)
     status = Column(Enum(OrderStatus), default=OrderStatus.CREATED)
-    bank_id = Column(Integer, ForeignKey('banks.id'), nullable=True)  # Банк (для UAH)
-    payment_details = Column(Text)  # Реквизиты для оплаты (wallet address, bank account, etc.)
-    user_comment = Column(Text)  # Комментарий пользователя
-    manager_comment = Column(Text)  # Комментарий менеджера
+    bank_id = Column(Integer, ForeignKey('banks.id'), nullable=True)
+    details = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime)
-    manager_id = Column(Integer, ForeignKey('users.id'), nullable=True)  # Менеджер, обрабатывающий заявку
+    manager_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     
     user = relationship("User", back_populates="orders", foreign_keys=[user_id])
-    manager = relationship("User", foreign_keys=[manager_id])
+    manager = relationship("User", back_populates="managed_orders", foreign_keys=[manager_id])
     from_currency = relationship("Currency", foreign_keys=[from_currency_id])
     to_currency = relationship("Currency", foreign_keys=[to_currency_id])
     bank = relationship("Bank")

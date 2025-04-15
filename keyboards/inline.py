@@ -5,16 +5,13 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 def get_currencies_selection(from_to="from", selected_currency=None):
     builder = InlineKeyboardBuilder()
     
-    # Список доступных валют (в реальном приложении будет загружаться из БД)
     currencies = [
         {"code": "USDT", "symbol": "₮"},
         {"code": "USD", "symbol": "$"},
         {"code": "UAH", "symbol": "₴"}
     ]
     
-    # Добавляем кнопки с валютами
     for currency in currencies:
-        # Пропускаем уже выбранную валюту в случае выбора второй валюты
         if selected_currency and currency["code"] == selected_currency:
             continue
         
