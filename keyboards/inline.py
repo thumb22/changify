@@ -1,27 +1,8 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-def get_language_selection():
-    """
-    Создает инлайн-клавиатуру для выбора языка
-    """
-    builder = InlineKeyboardBuilder()
-    
-    builder.row(
-        InlineKeyboardButton(text="🇺🇦 Українська", callback_data="lang:uk"),
-        InlineKeyboardButton(text="🇬🇧 English", callback_data="lang:en"),
-        InlineKeyboardButton(text="🇷🇺 Русский", callback_data="lang:ru")
-    )
-    
-    return builder.as_markup()
-
 
 def get_currencies_selection(from_to="from", selected_currency=None):
-    """
-    Создает инлайн-клавиатуру для выбора валюты
-    :param from_to: 'from' для выбора исходной валюты, 'to' для целевой валюты
-    :param selected_currency: ранее выбранная валюта (если есть)
-    """
     builder = InlineKeyboardBuilder()
     
     # Список доступных валют (в реальном приложении будет загружаться из БД)

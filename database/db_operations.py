@@ -14,19 +14,15 @@ def get_engine(db_url="sqlite:///changify.db"):
     return create_engine(db_url, echo=False)
 
 def init_db(engine):
-    """Инициализирует базу данных и создает таблицы"""
     Base.metadata.create_all(engine)
     logger.info("База данных инициализирована")
 
 def get_session(engine):
-    """Создает и возвращает сессию SQLAlchemy"""
     Session = sessionmaker(bind=engine)
     return Session()
 
 def setup_initial_data(session):
-    """Заполняет базу данных начальными данными"""
     try:
-        # Добавляем валюты
         if session.query(Currency).count() == 0:
             currencies = [
                 Currency(code="USDT", name="Tether", type=CurrencyType.CRYPTO),
@@ -98,16 +94,6 @@ def create_admin_user(session, telegram_id, username=None, first_name=None, last
         raise
 
 def get_or_create_user(session, user_data):
-    """
-    Получает пользователя из базы или создает нового
-    
-    user_data должен содержать:
-    - telegram_id: ID пользователя в Telegram
-    - username: имя пользователя (опционально)
-    - first_name: имя (опционально)
-    - last_name: фамилия (опционально)
-    - language_code: код языка (опционально)
-    """
     try:
         user = session.query(User).filter_by(telegram_id=user_data['telegram_id']).first()
         
@@ -122,9 +108,8 @@ def get_or_create_user(session, user_data):
             )
             session.add(user)
             session.commit()
-            logger.info(f"Создан новый пользователь {user_data['telegram_id']}")
+            logger.info(f"Created new user {user_data['telegram_id']}")
         else:
-            # Обновляем информацию о существующем пользователе
             user.username = user_data.get('username', user.username)
             user.first_name = user_data.get('first_name', user.first_name)
             user.last_name = user_data.get('last_name', user.last_name)

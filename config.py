@@ -41,8 +41,5 @@ LOG_LEVELS = {
 
 CACHE_TTL = int(os.getenv('CACHE_TTL', 300))
 
-DEFAULT_LANGUAGE = os.getenv('DEFAULT_LANGUAGE', 'uk')
-AVAILABLE_LANGUAGES = ['uk', 'en', 'ru']
-
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN is not set in environment variables")
