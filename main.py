@@ -12,9 +12,7 @@ from keyboards.reply import get_main_keyboard, get_manager_keyboard, get_admin_k
 from middlewares.user_middleware import UserMiddleware
 from utils.logger import setup_logger
 from utils.error_handler import handle_errors
-from handlers.user import setup_user_handlers
-from handlers.support import setup_support_handlers
-from handlers.profile import setup_profile_handlers
+from handlers import setup_handlers
 
 logger = setup_logger(__name__)
 
@@ -91,9 +89,7 @@ async def on_shutdown():
 async def main():
     try:
         await on_startup()
-        setup_user_handlers(dp)
-        setup_support_handlers(dp)
-        setup_profile_handlers(dp)
+        setup_handlers(dp)
         await dp.start_polling(bot)
     finally:
         await on_shutdown()

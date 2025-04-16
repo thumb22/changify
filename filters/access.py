@@ -15,7 +15,7 @@ class AdminFilter(BaseFilter):
                 return False
             
             db_user = event.db_user
-            return db_user and db_user.role == UserRole.ADMIN
+            return db_user and db_user['role'] == UserRole.ADMIN
         return False
 
 class ManagerFilter(BaseFilter):
@@ -28,7 +28,7 @@ class ManagerFilter(BaseFilter):
                 return False
             
             db_user = event.db_user
-            return db_user and (db_user.role == UserRole.MANAGER or db_user.role == UserRole.ADMIN)
+            return db_user and (db_user['role'] == UserRole.MANAGER or db_user['role'] == UserRole.ADMIN)
         return False
 
 class UserFilter(BaseFilter):
