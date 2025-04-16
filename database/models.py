@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Text, Enum
 from sqlalchemy.orm import relationship, sessionmaker, declarative_base
 import enum
@@ -31,8 +32,8 @@ class User(Base):
     first_name = Column(String(50), nullable=True)
     last_name = Column(String(50), nullable=True)
     role = Column(Enum(UserRole), default=UserRole.USER)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    last_active = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.now(ZoneInfo("Europe/Kyiv")))
+    last_active = Column(DateTime, default=datetime.now(ZoneInfo("Europe/Kyiv")))
     
     orders = relationship("Order", back_populates="user", foreign_keys="Order.user_id")
     managed_orders = relationship("Order", back_populates="manager", foreign_keys="Order.manager_id")

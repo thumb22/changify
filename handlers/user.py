@@ -1,13 +1,12 @@
 from aiogram import Router, F, types
-from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
 from keyboards.inline import get_currencies_selection, get_pagination_keyboard
 from states.exchange import ExchangeStates
 from utils.error_handler import handle_errors
 from utils.db_utils import get_all_currencies, get_exchange_rate, get_banks_for_currency
-from database.models import User, UserRole
-
+from keyboards.reply import get_support_keyboard
+from states.support import SupportStates
 router = Router()
 
 @router.message(F.text == "🔄 Обмін валют")
@@ -72,39 +71,14 @@ async def show_history(message: types.Message, db_user: dict, engine):
 
 @router.message(F.text == "🆘 Підтримка")
 @handle_errors
-async def show_support(message: types.Message, db_user: dict):
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    from aiogram.types import InlineKeyboardButton
-    builder = InlineKeyboardBuilder()
-    builder.row(
-        InlineKeyboardButton(text="✉️ Написати у підтримку", callback_data="support:new")
-    )
-    builder.row(
-        InlineKeyboardButton(text="📋 Історія звернень", callback_data="support:history")
-    )
+async def show_support(message: types.Message, state: FSMContext, db_user: dict):
+    await state.set_state(SupportStates.MAIN)
     await message.answer(
         "🆘 <b>Підтримка</b>\n\n"
-        "Якщо у вас виникли питання або проблеми з використанням бота, "
-        "ви можете зв'язатися з нашою підтримкою.",
+        "Оберіть дію:",
         parse_mode="HTML",
-        reply_markup=builder.as_markup()
+        reply_markup=get_support_keyboard()
     )
-
-@router.callback_query(F.data.startswith("support:"))
-@handle_errors
-async def process_support_callback(callback: types.CallbackQuery, state: FSMContext):
-    action = callback.data.split(":")[1]
-    if action == "new":
-        await callback.message.answer(
-            "✍️ Будь ласка, опишіть ваше питання або проблему в одному повідомленні."
-        )
-        await callback.answer()
-    elif action == "history":
-        await callback.message.answer(
-            "📋 Історія ваших звернень буде тут.\n"
-            "Поки що ця функція в розробці."
-        )
-        await callback.answer()
 
 def setup(dp):
     dp.include_router(router)

@@ -1,3 +1,4 @@
+from datetime import datetime
 from aiogram import Router, F, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -9,43 +10,45 @@ from utils.error_handler import handle_errors
 router = Router()
 
 @router.message(F.text == "👤 Профіль")
-@router.message(Command("profile"))
 @handle_errors
-async def cmd_profile(message: types.Message, db_user: dict, engine):
+async def cmd_profile(message: types.Message, db_user: dict, session):
     """Handler for profile command"""
     from database.models import Order
     from sqlalchemy.orm import Session
     from keyboards.inline import get_profile_settings
     
-    with Session(engine) as session:
-        orders = session.query(Order).filter(Order.user_id == db_user['id']).order_by(Order.created_at.desc()).limit(5).all()
+    orders = session.query(Order).filter(Order.user_id == db_user['telegram_id']).order_by(Order.created_at.desc()).limit(5).all()
+    
+    profile_text = f"📋 <b>Ваш профіль</b>\n\n"
+    profile_text += f"👤 <b>Ім'я:</b> {message.from_user.first_name}\n"
+    profile_text += f"🆔 <b>Telegram ID:</b> {message.from_user.id}\n"
+    
+    if message.from_user.username:
+        profile_text += f"👤 <b>Username:</b> @{message.from_user.username}\n"
         
-        # Формируем текст профиля
-        profile_text = f"📋 <b>Ваш профіль</b>\n\n"
-        profile_text += f"👤 <b>Ім'я:</b> {message.from_user.first_name}\n"
-        profile_text += f"🆔 <b>Telegram ID:</b> {message.from_user.id}\n"
-        
-        if message.from_user.username:
-            profile_text += f"👤 <b>Username:</b> @{message.from_user.username}\n"
-        
-        profile_text += f"📅 <b>Дата реєстрації:</b> {db_user.get('created_at', '').strftime('%d.%m.%Y %H:%M')}\n"
-        
-        profile_text += "\n<b>Останні заявки:</b>\n"
-        
-        if not orders:
-            profile_text += "У вас ще немає заявок.\n"
-        else:
-            for i, order in enumerate(orders, 1):
-                from_curr = order.from_currency.code
-                to_curr = order.to_currency.code
-                profile_text += f"{i}. {from_curr} → {to_curr} ({order.amount_from} {from_curr})\n"
-                profile_text += f"   Статус: {order.status.value}, Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
-        
-        await message.answer(
-            profile_text,
-            parse_mode="HTML",
-            reply_markup=get_profile_settings()
-        )
+    created_at = db_user.get("created_at")
+    if created_at:
+        profile_text += f"📅 <b>Дата реєстрації:</b> {created_at.strftime('%d.%m.%Y %H:%M')}\n"
+    else:
+        profile_text += "📅 <b>Дата реєстрації:</b> Невідомо\n"
+
+    
+    profile_text += "\n<b>Останні заявки:</b>\n"
+    
+    if not orders:
+        profile_text += "У вас ще немає заявок.\n"
+    else:
+        for i, order in enumerate(orders, 1):
+            from_curr = order.from_currency.code
+            to_curr = order.to_currency.code
+            profile_text += f"{i}. {from_curr} → {to_curr} ({order.amount_from} {from_curr})\n"
+            profile_text += f"   Статус: {order.status.value}, Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+    
+    await message.answer(
+        profile_text,
+        parse_mode="HTML",
+        reply_markup=get_profile_settings()
+    )
 
 
 @router.callback_query(F.data == "profile:contacts")
@@ -62,7 +65,7 @@ async def edit_contacts(callback: types.CallbackQuery, state: FSMContext):
 
 @router.message(ProfileStates.EDIT_CONTACTS)
 @handle_errors
-async def save_contacts(message: types.Message, state: FSMContext, db_user: dict, engine):
+async def save_contacts(message: types.Message, state: FSMContext, db_user: dict, session):
     """Handler for saving contact information"""
     from sqlalchemy.orm import Session
     from database.models import User
@@ -74,11 +77,11 @@ async def save_contacts(message: types.Message, state: FSMContext, db_user: dict
         await message.answer("Редагування контактної інформації скасовано.")
         return
     
-    with Session(engine) as session:
-        user = session.query(User).filter(User.id == db_user['id']).first()
-        if user:
-            user.contact_info = new_contact
-            session.commit()
+
+    user = session.query(User).filter(User.id == db_user['id']).first()
+    if user:
+        user.contact_info = new_contact
+        session.commit()
     
     await state.clear()
     await message.answer(
@@ -99,7 +102,5 @@ async def cmd_cancel(message: types.Message, state: FSMContext):
             reply_markup=get_main_keyboard()
         )
 
-
-# Add this to register all handlers with the main dispatcher
 def setup(dp):
     dp.include_router(router)

@@ -1,5 +1,5 @@
 import asyncio
-from aiogram import Bot, Dispatcher, types
+from aiogram import F, Bot, Dispatcher, Router, types
 from aiogram.filters import Command
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.enums import ParseMode
@@ -22,6 +22,8 @@ bot = Bot(
 )
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
+
+fallback_router = Router()
 
 engine = get_engine(config.DATABASE_URL)
 init_db(engine)
@@ -59,11 +61,6 @@ async def cmd_help(message: types.Message):
     )
     await message.answer(help_text)
 
-@dp.message()
-@handle_errors
-async def unknown_message(message: types.Message):
-    await message.answer("Я не розумію цю команду. Використовуйте /help для перегляду доступних команд.")
-
 async def on_startup():
     logger.info("Бот запущений")
     session = get_session(engine)
@@ -90,6 +87,12 @@ async def main():
         await dp.start_polling(bot)
     finally:
         await on_shutdown()
+        
+
+@fallback_router.message()
+@handle_errors
+async def unknown_message(message: types.Message):
+    await message.answer("Я не розумію цю команду. Використовуйте /help для перегляду доступних команд.")
 
 if __name__ == "__main__":
     try:

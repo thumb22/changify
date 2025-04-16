@@ -67,9 +67,7 @@ def get_support_keyboard():
     
     builder.row(
         KeyboardButton(text="✉️ Новий запит"),
-        KeyboardButton(text="📋 Історія")
+        KeyboardButton(text="🔙 Назад")
     )
-    
-    builder.row(KeyboardButton(text="🔙 Назад"))
-    
+        
     return builder.as_markup(resize_keyboard=True)
