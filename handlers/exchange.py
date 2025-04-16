@@ -11,12 +11,9 @@ from database.models import Order, OrderStatus, Currency, Bank, User
 
 router = Router()
 
-# Handlers for the exchange currency flow
-
-
 @router.callback_query(F.data.startswith("currency:"))
 @handle_errors
-async def process_currency_selection(callback: types.CallbackQuery, state: FSMContext, engine):
+async def process_currency_selection(callback: types.CallbackQuery, state: FSMContext, session):
     """Process currency selection callbacks"""
     parts = callback.data.split(":")
     action = parts[1]
@@ -49,8 +46,7 @@ async def process_currency_selection(callback: types.CallbackQuery, state: FSMCo
         
         await state.update_data(to_currency=currency_code)
         
-        # Get exchange rate
-        rate = await get_exchange_rate(engine, from_currency, currency_code)
+        rate = await get_exchange_rate(session, from_currency, currency_code)
         
         if rate:
             await state.update_data(rate=rate)
@@ -75,7 +71,7 @@ async def process_currency_selection(callback: types.CallbackQuery, state: FSMCo
 
 @router.message(ExchangeStates.ENTER_AMOUNT)
 @handle_errors
-async def process_amount(message: types.Message, state: FSMContext, engine):
+async def process_amount(message: types.Message, state: FSMContext, session):
     """Process amount input"""
     try:
         amount = float(message.text.replace(',', '.'))
@@ -96,7 +92,7 @@ async def process_amount(message: types.Message, state: FSMContext, engine):
     
     # Check if we need to select a bank (for fiat currencies)
     if to_currency == "UAH":
-        banks = await get_banks_for_currency(engine, to_currency)
+        banks = await get_banks_for_currency(session, to_currency)
         if banks:
             await state.set_state(ExchangeStates.SELECT_BANK)
             await message.answer(
@@ -116,7 +112,7 @@ async def process_amount(message: types.Message, state: FSMContext, engine):
 
 @router.callback_query(ExchangeStates.SELECT_BANK, F.data.startswith("bank:"))
 @handle_errors
-async def process_bank_selection(callback: types.CallbackQuery, state: FSMContext, engine):
+async def process_bank_selection(callback: types.CallbackQuery, state: FSMContext, session):
     """Process bank selection"""
     parts = callback.data.split(":")
     action = parts[1]
@@ -140,10 +136,9 @@ async def process_bank_selection(callback: types.CallbackQuery, state: FSMContex
     bank_id = int(parts[1])
     await state.update_data(bank_id=bank_id)
     
-    with Session(engine) as session:
-        bank = session.query(Bank).filter(Bank.id == bank_id).first()
-        if bank:
-            await state.update_data(bank_name=bank.name)
+    bank = session.query(Bank).filter(Bank.id == bank_id).first()
+    if bank:
+        await state.update_data(bank_name=bank.name)
     
     data = await state.get_data()
     amount_from = data.get("amount_from")
@@ -163,7 +158,7 @@ async def process_bank_selection(callback: types.CallbackQuery, state: FSMContex
 
 @router.message(ExchangeStates.ENTER_PAYMENT_DETAILS)
 @handle_errors
-async def process_payment_details(message: types.Message, state: FSMContext, db_user: dict, engine):
+async def process_payment_details(message: types.Message, state: FSMContext, db_user: dict, session):
     """Process payment details and create order"""
     payment_details = message.text
     
@@ -179,34 +174,31 @@ async def process_payment_details(message: types.Message, state: FSMContext, db_
     rate = data.get("rate")
     bank_id = data.get("bank_id")
     
-    from sqlalchemy.orm import Session
+    # Get currency objects
+    from_curr = session.query(Currency).filter(Currency.code == from_currency).first()
+    to_curr = session.query(Currency).filter(Currency.code == to_currency).first()
     
-    with Session(engine) as session:
-        # Get currency objects
-        from_curr = session.query(Currency).filter(Currency.code == from_currency).first()
-        to_curr = session.query(Currency).filter(Currency.code == to_currency).first()
-        
-        if not from_curr or not to_curr:
-            await message.answer("Помилка при створенні заявки. Спробуйте пізніше.")
-            await state.clear()
-            return
-        
-        # Create new order
-        new_order = Order(
-            user_id=db_user['id'],
-            from_currency_id=from_curr.id,
-            to_currency_id=to_curr.id,
-            amount_from=amount_from,
-            amount_to=amount_to,
-            rate=rate,
-            status=OrderStatus.CREATED,
-            bank_id=bank_id,
-            details=payment_details
-        )
-        
-        session.add(new_order)
-        session.commit()
-        order_id = new_order.id
+    if not from_curr or not to_curr:
+        await message.answer("Помилка при створенні заявки. Спробуйте пізніше.")
+        await state.clear()
+        return
+    
+    # Create new order
+    new_order = Order(
+        user_id=db_user['telegram_id'],
+        from_currency_id=from_curr.id,
+        to_currency_id=to_curr.id,
+        amount_from=amount_from,
+        amount_to=amount_to,
+        rate=rate,
+        status=OrderStatus.CREATED,
+        bank_id=bank_id,
+        details=payment_details
+    )
+    
+    session.add(new_order)
+    session.commit()
+    order_id = new_order.id
     
     # Clear state and send confirmation
     await state.clear()
@@ -234,10 +226,5 @@ async def process_payment_details(message: types.Message, state: FSMContext, db_
         reply_markup=get_order_actions(order_id, "created")
     )
     
-    # Notify managers about new order
-    # This should be implemented separately in your notification system
-
-
-# Add this to register all handlers with the main dispatcher
-def setup_exchange_handlers(dp):
+def setup(dp):
     dp.include_router(router)

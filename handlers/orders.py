@@ -1,8 +1,6 @@
-# handlers/orders.py
 from aiogram import F, Dispatcher, types
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
-from utils.error_handler import handle_errors
 from database.models import Order, OrderStatus, User, Currency, Bank
 from sqlalchemy import desc
 from database.db_operations import get_session
@@ -167,15 +165,13 @@ async def show_order_details(callback: types.CallbackQuery):
     finally:
         session.close()
 
-async def mark_order_as_paid(callback: types.CallbackQuery):
+async def mark_order_as_paid(callback: types.CallbackQuery, session):
     """Отмечает заявку как оплаченную"""
     await callback.answer()
     
     # Получаем ID заявки из callback_data
     order_id = int(callback.data.split(":")[2])
     
-    engine = callback.bot.get("db_engine")
-    session = get_session(engine)
     
     try:
         # Получаем заявку из БД
@@ -208,15 +204,12 @@ async def mark_order_as_paid(callback: types.CallbackQuery):
     finally:
         session.close()
 
-async def cancel_order_by_user(callback: types.CallbackQuery):
+async def cancel_order_by_user(callback: types.CallbackQuery, session):
     """Отмена заявки пользователем"""
     await callback.answer()
     
     # Получаем ID заявки из callback_data
     order_id = int(callback.data.split(":")[2])
-    
-    engine = callback.bot.get("db_engine")
-    session = get_session(engine)
     
     try:
         # Получаем заявку из БД
@@ -256,8 +249,7 @@ def setup(dp: Dispatcher):
     """Регистрация обработчиков"""
     # Команды меню
     dp.message.register(show_user_orders, F.text(text="📋 Історія"))
-    
-    # Обработчики действий с заявками
+
     dp.callback_query.register(show_order_details, lambda c: c.data.startswith("order:details:"))
     dp.callback_query.register(mark_order_as_paid, lambda c: c.data.startswith("order:paid:"))
     dp.callback_query.register(cancel_order_by_user, lambda c: c.data.startswith("order:cancel:"))

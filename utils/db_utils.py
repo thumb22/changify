@@ -1,11 +1,12 @@
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from sqlalchemy.exc import SQLAlchemyError
 import logging
-from database.db_operations import get_session
 from database.models import Currency, Bank, ExchangeRate, Setting
 
 logger = logging.getLogger(__name__)
 
-async def get_all_currencies(engine, enabled_only=True):
+async def get_all_currencies(session, enabled_only=True):
     """
     Получить все валюты из базы данных
     
@@ -16,7 +17,6 @@ async def get_all_currencies(engine, enabled_only=True):
     Returns:
         list: Список объектов Currency
     """
-    session = get_session(engine)
     try:
         query = session.query(Currency)
         if enabled_only:
@@ -29,19 +29,7 @@ async def get_all_currencies(engine, enabled_only=True):
     finally:
         session.close()
 
-async def get_exchange_rate(engine, from_currency_code, to_currency_code):
-    """
-    Получить курс обмена для пары валют
-    
-    Args:
-        engine: SQLAlchemy engine
-        from_currency_code (str): Код валюты, которую меняем
-        to_currency_code (str): Код валюты, на которую меняем
-        
-    Returns:
-        float: Курс обмена или None в случае ошибки
-    """
-    session = get_session(engine)
+async def get_exchange_rate(session, from_currency_code, to_currency_code):
     try:
         from_currency = session.query(Currency).filter_by(code=from_currency_code).first()
         to_currency = session.query(Currency).filter_by(code=to_currency_code).first()
@@ -63,18 +51,41 @@ async def get_exchange_rate(engine, from_currency_code, to_currency_code):
     finally:
         session.close()
 
-async def get_banks_for_currency(engine, currency_code):
-    """
-    Получить список банков для указанной валюты
-    
-    Args:
-        engine: SQLAlchemy engine
-        currency_code (str): Код валюты
-        
-    Returns:
-        list: Список объектов Bank
-    """
-    session = get_session(engine)
+def set_exchange_rate(session, from_currency_code, to_currency_code, rate):
+    try:
+        from_currency = session.query(Currency).filter_by(code=from_currency_code).first()
+        to_currency = session.query(Currency).filter_by(code=to_currency_code).first()
+
+        if not from_currency or not to_currency:
+            logger.error(f"Одна из валют не найдена: {from_currency_code} → {to_currency_code}")
+            return False
+
+        existing_rate = session.query(ExchangeRate).filter_by(
+            from_currency_id=from_currency.id,
+            to_currency_id=to_currency.id
+        ).first()
+
+        if existing_rate:
+            existing_rate.rate = rate
+            existing_rate.updated_at =  datetime.now(ZoneInfo("Europe/Kyiv"))
+            logger.info(f"Обновлен курс {from_currency_code} → {to_currency_code} до {rate}")
+        else:
+            new_rate = ExchangeRate(
+                from_currency_id=from_currency.id,
+                to_currency_id=to_currency.id,
+                rate=rate
+            )
+            session.add(new_rate)
+            logger.info(f"Добавлен курс {from_currency_code} → {to_currency_code}: {rate}")
+
+        session.commit()
+        return True
+    except SQLAlchemyError as e:
+        session.rollback()
+        logger.error(f"Ошибка при установке курса обмена: {e}")
+        return False
+
+async def get_banks_for_currency(session, currency_code):
     try:
         currency = session.query(Currency).filter_by(code=currency_code).first()
         
@@ -93,19 +104,7 @@ async def get_banks_for_currency(engine, currency_code):
     finally:
         session.close()
 
-async def get_setting(engine, key, default=None):
-    """
-    Получить значение настройки по ключу
-    
-    Args:
-        engine: SQLAlchemy engine
-        key (str): Ключ настройки
-        default: Значение по умолчанию, если настройка не найдена
-        
-    Returns:
-        str: Значение настройки или default в случае ошибки
-    """
-    session = get_session(engine)
+async def get_setting(session, key, default=None):
     try:
         setting = session.query(Setting).filter_by(key=key).first()
         

@@ -37,37 +37,35 @@ async def show_rates(message: types.Message, db_user: dict, engine):
 
 @router.message(F.text == "📋 Історія")
 @handle_errors
-async def show_history(message: types.Message, db_user: dict, engine):
-    from sqlalchemy.orm import Session
+async def show_history(message: types.Message, db_user: dict, session):
     from database.models import Order, OrderStatus
-    with Session(engine) as session:
-        orders = session.query(Order).filter(Order.user_id == db_user['id']).order_by(Order.created_at.desc()).limit(5).all()
-        if not orders:
-            await message.answer("У вашій історії ще немає заявок на обмін.")
-            return
-        history_text = "📝 <b>Ваша історія заявок</b>\n\n"
-        for order in orders:
-            status_emoji = {
-                OrderStatus.CREATED: "🆕",
-                OrderStatus.AWAITING_PAYMENT: "⏳",
-                OrderStatus.PAYMENT_CONFIRMED: "✅",
-                OrderStatus.PROCESSING: "⚙️",
-                OrderStatus.COMPLETED: "✅",
-                OrderStatus.CANCELLED: "❌"
-            }.get(order.status, "❓")
-            history_text += (
-                f"<b>Заявка #{order.id}</b> {status_emoji}\n"
-                f"📅 {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
-                f"💱 {order.amount_from} {order.from_currency.code} → "
-                f"{order.amount_to} {order.to_currency.code}\n"
-                f"📊 Курс: {order.rate:.2f}\n"
-                f"📑 Статус: {order.status.value}\n\n"
-            )
-        await message.answer(
-            history_text,
-            parse_mode="HTML",
-            reply_markup=get_pagination_keyboard(1, 1, "history")
+    orders = session.query(Order).filter(Order.user_id == db_user['telegram_id']).order_by(Order.created_at.desc()).limit(5).all()
+    if not orders:
+        await message.answer("У вашій історії ще немає заявок на обмін.")
+        return
+    history_text = "📝 <b>Ваша історія заявок</b>\n\n"
+    for order in orders:
+        status_emoji = {
+            OrderStatus.CREATED: "🆕",
+            OrderStatus.AWAITING_PAYMENT: "⏳",
+            OrderStatus.PAYMENT_CONFIRMED: "✅",
+            OrderStatus.PROCESSING: "⚙️",
+            OrderStatus.COMPLETED: "✅",
+            OrderStatus.CANCELLED: "❌"
+        }.get(order.status, "❓")
+        history_text += (
+            f"<b>Заявка #{order.id}</b> {status_emoji}\n"
+            f"📅 {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            f"💱 {order.amount_from} {order.from_currency.code} → "
+            f"{order.amount_to} {order.to_currency.code}\n"
+            f"📊 Курс: {order.rate:.2f}\n"
+            f"📑 Статус: {order.status.value}\n\n"
         )
+    await message.answer(
+        history_text,
+        parse_mode="HTML",
+        reply_markup=get_pagination_keyboard(1, 1, "history")
+    )
 
 @router.message(F.text == "🆘 Підтримка")
 @handle_errors

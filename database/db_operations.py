@@ -3,6 +3,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
 import logging
 
+from utils.db_utils import set_exchange_rate
+
 from .models import Base, Currency, CurrencyType, Bank, User, UserRole, Setting
 
 # Настройка логирования
@@ -35,6 +37,8 @@ def setup_initial_data(session):
             logger.info("Добавлены начальные валюты")
         
         uah = session.query(Currency).filter_by(code="UAH").first()
+        
+        set_exchange_rate(session, "USDT", "UAH", 39.2)
         
         if uah and session.query(Bank).count() == 0:
             banks = [
@@ -112,3 +116,4 @@ def get_or_create_user(session, user_data):
         session.rollback()
         logger.error(f"Ошибка при получении/создании пользователя: {e}")
         raise
+    
