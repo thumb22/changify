@@ -21,15 +21,15 @@ async def exchange_start(message: types.Message, state: FSMContext, db_user: dic
 
 @router.message(F.text == "📊 Курси валют")
 @handle_errors
-async def show_rates(message: types.Message, db_user: dict, engine):
-    currencies = await get_all_currencies(engine)
+async def show_rates(message: types.Message, db_user: dict, session):
+    currencies = await get_all_currencies(session)
     if not currencies:
         await message.answer("На жаль, інформація про курси валют тимчасово недоступна.")
         return
     rates_text = "💹 <b>Поточні курси обміну</b>\n\n"
     pairs = [("USDT", "UAH"), ("USD", "UAH"), ("USDT", "USD")]
     for from_curr, to_curr in pairs:
-        rate = await get_exchange_rate(engine, from_curr, to_curr)
+        rate = await get_exchange_rate(session, from_curr, to_curr)
         if rate:
             rates_text += f"<b>{from_curr} → {to_curr}:</b> {rate:.2f}\n"
     rates_text += "\nКурси можуть змінюватися. Для здійснення обміну натисніть '🔄 Обмін валют'"

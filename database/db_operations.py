@@ -7,7 +7,6 @@ from utils.db_utils import set_exchange_rate
 
 from .models import Base, Currency, CurrencyType, Bank, User, UserRole, Setting
 
-# Настройка логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -38,7 +37,9 @@ def setup_initial_data(session):
         
         uah = session.query(Currency).filter_by(code="UAH").first()
         
-        set_exchange_rate(session, "USDT", "UAH", 39.2)
+        set_exchange_rate(session, "USDT", "UAH", 41.29 + (0.01 * 41.29))
+        set_exchange_rate(session, "USDT", "USD", 1)
+        set_exchange_rate(session, "USD", "UAH", 41.29 + (0.01 * 41.29))
         
         if uah and session.query(Bank).count() == 0:
             banks = [

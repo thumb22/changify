@@ -78,7 +78,7 @@ async def save_contacts(message: types.Message, state: FSMContext, db_user: dict
         return
     
 
-    user = session.query(User).filter(User.id == db_user['id']).first()
+    user = session.query(User).filter(User.id == db_user['telegram_id']).first()
     if user:
         user.contact_info = new_contact
         session.commit()
