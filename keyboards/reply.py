@@ -33,7 +33,6 @@ def get_manager_keyboard():
     )
     
     builder.row(
-        KeyboardButton(text="📈 Статистика"),
         KeyboardButton(text="👤 Профіль")
     )
     
@@ -54,8 +53,6 @@ def get_admin_keyboard():
         KeyboardButton(text="💱 Курси валют"),
         KeyboardButton(text="⚙️ Налаштування")
     )
-    
-    builder.row(KeyboardButton(text="📊 Статистика"))
     
     return builder.as_markup(resize_keyboard=True)
 
