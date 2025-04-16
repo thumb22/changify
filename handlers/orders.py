@@ -4,7 +4,7 @@ from aiogram.filters import Text
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
 from utils.error_handler import handle_errors
-from database.models import Order, OrderStatus
+from database.models import Order, OrderStatus, User, Currency, Bank
 from sqlalchemy import desc
 from database.db_operations import get_session
 

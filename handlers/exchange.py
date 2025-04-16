@@ -9,7 +9,6 @@ from states.exchange import ExchangeStates
 from keyboards.inline import get_currencies_selection, get_bank_selection
 from utils.error_handler import handle_errors
 from utils.db_utils import get_exchange_rate, get_banks_for_currency
-from database.models import Currency, Order, OrderStatus
 
 async def start_exchange(message: types.Message, state: FSMContext):
     """Начало процесса обмена"""
