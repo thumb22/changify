@@ -2,7 +2,6 @@ from aiogram import Router, F, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
-from keyboards.reply import get_main_keyboard
 from keyboards.inline import get_currencies_selection, get_pagination_keyboard
 from states.exchange import ExchangeStates
 from utils.error_handler import handle_errors

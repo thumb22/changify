@@ -22,11 +22,6 @@ class CurrencyType(enum.Enum):
     CRYPTO = "crypto"
     FIAT = "fiat"
 
-class SupportStatus(enum.Enum):  # Добавляем перечисление для статусов запросов в поддержку
-    PENDING = "pending"
-    ANSWERED = "answered"
-    CLOSED = "closed"
-
 class User(Base):
     __tablename__ = 'users'
     
@@ -41,7 +36,6 @@ class User(Base):
     
     orders = relationship("Order", back_populates="user", foreign_keys="Order.user_id")
     managed_orders = relationship("Order", back_populates="manager", foreign_keys="Order.manager_id")
-    support_requests = relationship("SupportRequest", back_populates="user")  # Связь с SupportRequest
     
     def __repr__(self):
         return f"<User(id={self.id}, telegram_id={self.telegram_id}, username={self.username})>"
@@ -111,21 +105,6 @@ class Order(Base):
     
     def __repr__(self):
         return f"<Order(id={self.id}, user_id={self.user_id}, status={self.status})>"
-
-class SupportRequest(Base):  # Добавляем модель SupportRequest
-    __tablename__ = 'support_requests'
-    
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    message = Column(Text, nullable=False)
-    status = Column(Enum(SupportStatus), default=SupportStatus.PENDING)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    answer = Column(Text, nullable=True)
-    
-    user = relationship("User", back_populates="support_requests")
-    
-    def __repr__(self):
-        return f"<SupportRequest(id={self.id}, user_id={self.user_id}, status={self.status})>"
 
 class Setting(Base):
     __tablename__ = 'settings'
