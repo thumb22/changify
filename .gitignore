@@ -1,7 +1,4 @@
 .env
-
 **/__pycache__
-
 *.db
-
-/logs/*.log
+**/*.log

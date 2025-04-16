@@ -62,7 +62,7 @@ async def cmd_help(message: types.Message):
     await message.answer(help_text)
 
 async def on_startup():
-    logger.info("Бот запущений")
+    logger.info("Bot started")
     session = get_session(engine)
     for admin_id in config.ADMIN_IDS:
         from database.db_operations import create_admin_user
@@ -78,7 +78,7 @@ async def on_startup():
     session.close()
 
 async def on_shutdown():
-    logger.info("Бот зупинений")
+    logger.info("Bot stopped")
 
 async def main():
     try:
@@ -102,7 +102,7 @@ if __name__ == "__main__":
         else:
             asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        logger.info("Бот зупинений користувачем")
+        logger.info("Bot stopped by user")
     except Exception as e:
-        logger.critical(f"Непередбачена помилка: {e}")
+        logger.critical(f"Unexpected error: {e}")
         raise

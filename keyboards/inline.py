@@ -1,7 +1,6 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-
 def get_currencies_selection(from_to="from", selected_currency=None):
     builder = InlineKeyboardBuilder()
     

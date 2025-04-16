@@ -28,7 +28,7 @@ def setup_initial_data(session):
         if session.query(Currency).count() == 0:
             currencies = [
                 Currency(code="USDT", name="Tether", type=CurrencyType.CRYPTO),
-                Currency(code="USD", name="US Dollar", type=CurrencyType.FIAT),
+                # Currency(code="USD", name="US Dollar", type=CurrencyType.FIAT),
                 Currency(code="UAH", name="Ukrainian Hryvnia", type=CurrencyType.FIAT)
             ]
             session.add_all(currencies)
@@ -38,8 +38,6 @@ def setup_initial_data(session):
         uah = session.query(Currency).filter_by(code="UAH").first()
         
         set_exchange_rate(session, "USDT", "UAH", 41.29 + (0.01 * 41.29))
-        set_exchange_rate(session, "USDT", "USD", 1)
-        set_exchange_rate(session, "USD", "UAH", 41.29 + (0.01 * 41.29))
         
         if uah and session.query(Bank).count() == 0:
             banks = [

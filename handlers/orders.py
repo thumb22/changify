@@ -29,7 +29,6 @@ async def show_user_orders(message: types.Message):
         text = "📋 <b>Ваші останні заявки:</b>\n\n"
         
         for order in orders:
-            # Получаем данные о валютах
             from_currency = session.query(Currency).filter_by(id=order.from_currency_id).first()
             to_currency = session.query(Currency).filter_by(id=order.to_currency_id).first()
             
