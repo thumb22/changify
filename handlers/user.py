@@ -107,5 +107,5 @@ async def process_support_callback(callback: types.CallbackQuery, state: FSMCont
         )
         await callback.answer()
 
-def setup_user_handlers(dp):
+def setup(dp):
     dp.include_router(router)

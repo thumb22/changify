@@ -134,5 +134,5 @@ async def back_to_main(message: types.Message, state: FSMContext):
     )
     await state.clear()
 
-def setup_support_handlers(dp):
+def setup(dp):
     dp.include_router(router)

@@ -101,5 +101,5 @@ async def cmd_cancel(message: types.Message, state: FSMContext):
 
 
 # Add this to register all handlers with the main dispatcher
-def setup_profile_handlers(dp):
+def setup(dp):
     dp.include_router(router)
