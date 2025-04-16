@@ -1,154 +1,138 @@
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, MessageHandler, filters
-
-from database import db_session
+from aiogram import Router, F, types
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from sqlalchemy.orm import Session
 from database.models import User, SupportRequest
-from keyboards import get_main_keyboard, get_support_keyboard
-from utils import user_required, send_message_to_managers
+from keyboards.reply import get_main_keyboard, get_support_keyboard
+# from utils import send_message_to_managers
+from utils.error_handler import handle_errors
 
-# Состояния для ConversationHandler
-SUPPORT_MAIN, SENDING_MESSAGE = range(2)
+router = Router()
 
-@user_required
-async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Открывает меню поддержки"""
-    await update.message.reply_text(
+class SupportStates(StatesGroup):
+    MAIN = State()
+    SENDING_MESSAGE = State()
+
+@router.message(F.text == "🆘 Підтримка")
+@handle_errors
+async def support_command(message: types.Message, state: FSMContext):
+    await message.answer(
         "📞 <b>Зв'язок з менеджером</b>\n\n"
         "Ви можете задати питання або отримати допомогу від наших менеджерів.\n"
         "Виберіть опцію нижче:",
         reply_markup=get_support_keyboard(),
         parse_mode="HTML"
     )
-    return SUPPORT_MAIN
+    await state.set_state(SupportStates.MAIN)
 
-async def start_new_request(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Начинает процесс создания нового запроса в поддержку"""
-    await update.message.reply_text(
+@router.message(F.text == "✉️ Новий запит", SupportStates.MAIN)
+@handle_errors
+async def start_new_request(message: types.Message, state: FSMContext):
+    await message.answer(
         "Будь ласка, опишіть ваше питання або проблему. "
         "Менеджер зв'яжеться з вами якнайшвидше.",
-        reply_markup=ReplyKeyboardMarkup([["Скасувати"]], resize_keyboard=True)
+        reply_markup=types.ReplyKeyboardMarkup(
+            keyboard=[[types.KeyboardButton(text="Скасувати")]],
+            resize_keyboard=True
+        )
     )
-    return SENDING_MESSAGE
+    await state.set_state(SupportStates.SENDING_MESSAGE)
 
-async def process_support_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Обрабатывает сообщение пользователя и отправляет его менеджерам"""
-    message_text = update.message.text
-    user_id = update.effective_user.id
-    username = update.effective_user.username or "Без імені користувача"
-    
+@router.message(SupportStates.SENDING_MESSAGE)
+@handle_errors
+async def process_support_message(message: types.Message, state: FSMContext, engine, db_user: dict):
+    message_text = message.text
+    user_id = message.from_user.id
+    username = message.from_user.username or "Без імені користувача"
+
     if message_text == "Скасувати":
-        await update.message.reply_text(
+        await message.answer(
             "Запит скасовано.",
             reply_markup=get_support_keyboard()
         )
-        return SUPPORT_MAIN
-    
-    # Сохраняем запрос в базе данных
-    with db_session() as session:
+        await state.set_state(SupportStates.MAIN)
+        return
+
+    with Session(engine) as session:
         user = session.query(User).filter(User.telegram_id == user_id).first()
-        
         if not user:
-            await update.message.reply_text("Користувач не знайдений. Будь ласка, почніть з /start")
-            return ConversationHandler.END
-        
+            await message.answer("Користувач не знайдений. Будь ласка, почніть з /start")
+            await state.clear()
+            return
+
         support_request = SupportRequest(
             user_id=user.id,
             message=message_text,
-            status="pending"  # pending, answered, closed
+            status="pending"
         )
         session.add(support_request)
         session.commit()
         request_id = support_request.id
-    
-    # Отправляем сообщение всем менеджерам
+
     manager_notification = (
         f"🆘 <b>Новий запит підтримки #{request_id}</b>\n\n"
-        f"Від: {update.effective_user.first_name} (@{username}, ID: {user_id})\n"
+        f"Від: {message.from_user.first_name} (@{username}, ID: {user_id})\n"
         f"Повідомлення: {message_text}\n\n"
         f"Для відповіді використовуйте команду /reply {request_id} [ваша відповідь]"
     )
-    
-    await send_message_to_managers(context.bot, manager_notification)
-    
-    await update.message.reply_text(
+
+    print(f"Would send to managers: {manager_notification}")    
+    # await send_message_to_managers(message.bot, manager_notification)
+
+    await message.answer(
         "✅ Ваш запит успішно відправлено менеджеру!\n"
         "Ми зв'яжемося з вами якнайшвидше.",
         reply_markup=get_support_keyboard()
     )
-    
-    return SUPPORT_MAIN
+    await state.set_state(SupportStates.MAIN)
 
-async def view_support_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Отображает историю запросов в поддержку"""
-    user_id = update.effective_user.id
-    
-    with db_session() as session:
+@router.message(F.text == "📋 Історія", SupportStates.MAIN)
+@handle_errors
+async def view_support_history(message: types.Message, engine, db_user: dict):
+    user_id = message.from_user.id
+
+    with Session(engine) as session:
         user = session.query(User).filter(User.telegram_id == user_id).first()
-        
         if not user:
-            await update.message.reply_text("Користувач не знайдений. Будь ласка, почніть з /start")
-            return ConversationHandler.END
-        
+            await message.answer("Користувач не знайдений. Будь ласка, почніть з /start")
+            return
+
         requests = session.query(SupportRequest).filter(
             SupportRequest.user_id == user.id
         ).order_by(SupportRequest.created_at.desc()).limit(5).all()
-    
+
     if not requests:
-        await update.message.reply_text(
+        await message.answer(
             "У вас ще немає запитів у підтримку.",
             reply_markup=get_support_keyboard()
         )
-        return SUPPORT_MAIN
-    
+        return
+
     history_text = "📋 <b>Історія ваших запитів:</b>\n\n"
-    
     for req in requests:
         status_emoji = "⏳" if req.status == "pending" else "✅" if req.status == "answered" else "🔒"
         status_text = "В очікуванні" if req.status == "pending" else "Відповідь отримана" if req.status == "answered" else "Закрито"
-        
         history_text += f"<b>Запит #{req.id}</b> {status_emoji} {status_text}\n"
         history_text += f"📅 {req.created_at.strftime('%d.%m.%Y %H:%M')}\n"
         history_text += f"💬 {req.message[:50]}{'...' if len(req.message) > 50 else ''}\n"
-        
         if req.answer:
             history_text += f"📝 <b>Відповідь:</b> {req.answer[:50]}{'...' if len(req.answer) > 50 else ''}\n"
-        
         history_text += "\n"
-    
-    await update.message.reply_text(
+
+    await message.answer(
         history_text,
         reply_markup=get_support_keyboard(),
         parse_mode="HTML"
     )
-    
-    return SUPPORT_MAIN
 
-async def back_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Возврат в главное меню"""
-    await update.message.reply_text(
+@router.message(F.text == "🔙 Назад", SupportStates.MAIN)
+@handle_errors
+async def back_to_main(message: types.Message, state: FSMContext):
+    await message.answer(
         "Повертаємось до головного меню",
-        reply_markup=get_main_keyboard(update.effective_user.id)
+        reply_markup=get_main_keyboard()
     )
-    return ConversationHandler.END
+    await state.clear()
 
-def get_support_handlers():
-    """Возвращает обработчики для функции поддержки"""
-    support_conv = ConversationHandler(
-        entry_points=[
-            CommandHandler('support', support_command),
-            MessageHandler(filters.Regex('^(Підтримка|📞 Підтримка)$'), support_command)
-        ],
-        states={
-            SUPPORT_MAIN: [
-                MessageHandler(filters.Regex('^(Новий запит|✉️ Новий запит)$'), start_new_request),
-                MessageHandler(filters.Regex('^(Історія запитів|📋 Історія)$'), view_support_history),
-                MessageHandler(filters.Regex('^(Назад|🔙 Назад)$'), back_to_main),
-            ],
-            SENDING_MESSAGE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, process_support_message),
-            ],
-        },
-        fallbacks=[CommandHandler('cancel', back_to_main)],
-    )
-    
-    return [support_conv]
+def setup_support_handlers(dp):
+    dp.include_router(router)

@@ -1,6 +1,5 @@
 # handlers/orders.py
-from aiogram import Dispatcher, types
-from aiogram.filters import Text
+from aiogram import F, Dispatcher, types
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
 from utils.error_handler import handle_errors
@@ -255,7 +254,7 @@ async def show_orders_list(callback: types.CallbackQuery):
 def setup(dp: Dispatcher):
     """Регистрация обработчиков"""
     # Команды меню
-    dp.message.register(show_user_orders, Text(text="📋 Історія"))
+    dp.message.register(show_user_orders, F.text(text="📋 Історія"))
     
     # Обработчики действий с заявками
     dp.callback_query.register(show_order_details, lambda c: c.data.startswith("order:details:"))

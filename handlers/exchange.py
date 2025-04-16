@@ -1,285 +1,243 @@
-# handlers/exchange.py
-from aiogram import Dispatcher, types
-from aiogram.filters import Text
+from aiogram import Router, F, types
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardButton
 
+from keyboards.reply import get_main_keyboard
+from keyboards.inline import get_currencies_selection, get_bank_selection, get_order_actions
 from states.exchange import ExchangeStates
-from keyboards.inline import get_currencies_selection, get_bank_selection
 from utils.error_handler import handle_errors
 from utils.db_utils import get_exchange_rate, get_banks_for_currency
+from database.models import Order, OrderStatus, Currency, Bank, User
 
-async def start_exchange(message: types.Message, state: FSMContext):
-    """Начало процесса обмена"""
-    await state.clear()
-    await message.answer(
-        "🔄 <b>Обмін валют</b>\n\n"
-        "Оберіть валюту, яку хочете обміняти:",
-        reply_markup=get_currencies_selection("from")
-    )
-    await state.set_state(ExchangeStates.SELECT_FROM_CURRENCY)
+router = Router()
 
-async def process_from_currency(callback: types.CallbackQuery, state: FSMContext):
-    """Обработка выбора исходной валюты"""
-    await callback.answer()
-    
-    # Получаем код валюты из callback_data
-    currency_code = callback.data.split(":")[2]
-    
-    # Сохраняем в состояние
-    await state.update_data(from_currency=currency_code)
-    
-    # Предлагаем выбрать целевую валюту
-    await callback.message.edit_text(
-        f"Обрано: <b>{currency_code}</b>\n\n"
-        f"Тепер оберіть валюту, на яку хочете обміняти:",
-        reply_markup=get_currencies_selection("to", currency_code)
-    )
-    
-    await state.set_state(ExchangeStates.SELECT_TO_CURRENCY)
+# Handlers for the exchange currency flow
 
-async def process_to_currency(callback: types.CallbackQuery, state: FSMContext):
-    """Обработка выбора целевой валюты"""
-    await callback.answer()
+
+@router.callback_query(F.data.startswith("currency:"))
+@handle_errors
+async def process_currency_selection(callback: types.CallbackQuery, state: FSMContext, engine):
+    """Process currency selection callbacks"""
+    parts = callback.data.split(":")
+    action = parts[1]
     
-    # Получаем код валюты из callback_data
-    currency_code = callback.data.split(":")[2]
-    
-    # Получаем данные из состояния
-    data = await state.get_data()
-    from_currency = data.get('from_currency')
-    
-    # Сохраняем в состояние
-    await state.update_data(to_currency=currency_code)
-    
-    # Получаем текущий курс обмена
-    engine = callback.bot.get("db_engine")
-    rate = await get_exchange_rate(engine, from_currency, currency_code)
-    
-    if rate:
-        await state.update_data(rate=rate)
-        
-        await callback.message.edit_text(
-            f"Обмін: <b>{from_currency} → {currency_code}</b>\n"
-            f"Поточний курс: <b>1 {from_currency} = {rate:.2f} {currency_code}</b>\n\n"
-            f"Введіть суму {from_currency}, яку хочете обміняти:"
-        )
-        
-        await state.set_state(ExchangeStates.ENTER_AMOUNT)
-    else:
-        await callback.message.edit_text(
-            "На жаль, обмін для цієї пари валют тимчасово недоступний.\n"
-            "Спробуйте вибрати іншу пару або зв'яжіться з підтримкою."
-        )
+    if action == "back":
         await state.clear()
-
-async def process_amount(message: types.Message, state: FSMContext):
-    """Обработка ввода суммы для обмена"""
-    try:
-        amount = float(message.text.strip())
-        if amount <= 0:
-            await message.answer("Сума має бути більше нуля. Спробуйте ще раз:")
-            return
-    except ValueError:
-        await message.answer("Будь ласка, введіть коректну суму числом. Спробуйте ще раз:")
-        return
-    
-    # Сохраняем сумму в состояние
-    await state.update_data(amount_from=amount)
-    
-    # Получаем данные из состояния
-    data = await state.get_data()
-    from_currency = data.get('from_currency')
-    to_currency = data.get('to_currency')
-    rate = data.get('rate')
-    
-    # Рассчитываем сумму к получению
-    amount_to = amount * rate
-    await state.update_data(amount_to=amount_to)
-    
-    # Проверяем, нужно ли выбирать банк (для UAH)
-    engine = message.bot.get("db_engine")
-    
-    if to_currency == "UAH":
-        # Если обмен на UAH, нужно выбрать банк
-        await message.answer(
-            f"Сума до обміну: <b>{amount:.2f} {from_currency}</b>\n"
-            f"Сума до отримання: <b>{amount_to:.2f} {to_currency}</b>\n\n"
-            f"Оберіть банк для отримання коштів:",
-            reply_markup=get_bank_selection()
+        await callback.message.edit_text(
+            "Операцію скасовано. Оберіть дію в меню.",
+            reply_markup=None
         )
-        await state.set_state(ExchangeStates.SELECT_BANK)
-    else:
-        # Если не нужно выбирать банк, переходим к вводу реквизитов
-        await message.answer(
-            f"Сума до обміну: <b>{amount:.2f} {from_currency}</b>\n"
-            f"Сума до отримання: <b>{amount_to:.2f} {to_currency}</b>\n\n"
-            f"Введіть реквізити для отримання {to_currency}:"
-        )
-        await state.set_state(ExchangeStates.ENTER_PAYMENT_DETAILS)
-
-async def process_bank_selection(callback: types.CallbackQuery, state: FSMContext):
-    """Обработка выбора банка"""
-    await callback.answer()
-    
-    # Получаем ID банка из callback_data
-    bank_id = int(callback.data.split(":")[1])
-    
-    # Сохраняем в состояние
-    await state.update_data(bank_id=bank_id)
-    
-    # Получаем данные из состояния
-    data = await state.get_data()
-    to_currency = data.get('to_currency')
-    
-    await callback.message.edit_text(
-        f"Обрано банк: <b>{get_bank_name(bank_id)}</b>\n\n"
-        f"Введіть реквізити (номер картки) для отримання {to_currency}:"
-    )
-    
-    await state.set_state(ExchangeStates.ENTER_PAYMENT_DETAILS)
-
-def get_bank_name(bank_id):
-    """Получает название банка по ID"""
-    # Здесь должна быть логика получения названия банка из БД
-    banks = {1: "ПриватБанк", 2: "Монобанк", 3: "ПУМБ"}
-    return banks.get(bank_id, "Невідомий банк")
-
-async def process_payment_details(message: types.Message, state: FSMContext):
-    """Обработка ввода реквизитов"""
-    payment_details = message.text.strip()
-    
-    if len(payment_details) < 5:  # Минимальная валидация
-        await message.answer("Реквізити занадто короткі. Будь ласка, введіть коректні дані:")
+        await callback.answer()
         return
-    
-    # Сохраняем в состояние
-    await state.update_data(payment_details=payment_details)
-    
-    # Получаем все данные из состояния
-    data = await state.get_data()
-    from_currency = data.get('from_currency')
-    to_currency = data.get('to_currency')
-    amount_from = data.get('amount_from')
-    amount_to = data.get('amount_to')
-    bank_id = data.get('bank_id')
-    
-    # Формируем сообщение для подтверждения
-    confirmation_text = (
-        f"📝 <b>Підтвердження заявки на обмін</b>\n\n"
-        f"Напрямок: <b>{from_currency} → {to_currency}</b>\n"
-        f"Сума обміну: <b>{amount_from:.2f} {from_currency}</b>\n"
-        f"Сума до отримання: <b>{amount_to:.2f} {to_currency}</b>\n"
-    )
-    
-    if bank_id:
-        confirmation_text += f"Банк: <b>{get_bank_name(bank_id)}</b>\n"
-    
-    confirmation_text += (
-        f"Реквізити: <code>{payment_details}</code>\n\n"
-        f"Перевірте дані та підтвердіть заявку:"
-    )
-    
-    # Создаем клавиатуру для подтверждения
-    builder = InlineKeyboardBuilder()
-    builder.row(
-        InlineKeyboardButton(text="✅ Підтвердити", callback_data="order:confirm"),
-        InlineKeyboardButton(text="❌ Скасувати", callback_data="order:cancel")
-    )
-    
-    await message.answer(confirmation_text, reply_markup=builder.as_markup())
-    await state.set_state(ExchangeStates.CONFIRM_ORDER)
-
-async def confirm_order(callback: types.CallbackQuery, state: FSMContext):
-    """Подтверждение заявки"""
-    await callback.answer()
-    
-    # Получаем данные из состояния
-    data = await state.get_data()
-    
-    # Создаем заявку в БД
-    engine = callback.bot.get("db_engine")
-    # Здесь должен быть код для создания заявки
-
-    await callback.message.edit_text(
-        "✅ <b>Заявку створено!</b>\n\n"
-        "Наш менеджер скоро зв'яжеться з вами для підтвердження деталей.\n"
-        "Статус заявки можна перевірити в розділі '📋 Історія'."
-    )
-    
-    # Уведомляем менеджеров о новой заявке
-    # Здесь должен быть код отправки уведомления менеджерам
-    
-    await state.clear()
-
-async def cancel_order(callback: types.CallbackQuery, state: FSMContext):
-    """Отмена заявки"""
-    await callback.answer()
-    
-    await callback.message.edit_text(
-        "❌ Заявку скасовано.\n\n"
-        "Ви можете створити нову заявку в будь-який час через меню '🔄 Обмін валют'."
-    )
-    
-    await state.clear()
-
-async def process_back_to_currencies(callback: types.CallbackQuery, state: FSMContext):
-    """Обработка кнопки Назад при выборе валюты"""
-    await callback.answer()
     
     current_state = await state.get_state()
     
-    if current_state == ExchangeStates.SELECT_TO_CURRENCY:
-        # Возвращаемся к выбору исходной валюты
+    if action == "from":
+        currency_code = parts[2]
+        await state.update_data(from_currency=currency_code)
+        await state.set_state(ExchangeStates.SELECT_TO_CURRENCY)
+        
         await callback.message.edit_text(
-            "🔄 <b>Обмін валют</b>\n\n"
-            "Оберіть валюту, яку хочете обміняти:",
-            reply_markup=get_currencies_selection("from")
+            f"Обрана валюта: {currency_code}\n\nТепер оберіть валюту, яку хочете отримати:",
+            reply_markup=get_currencies_selection("to", currency_code)
         )
-        await state.set_state(ExchangeStates.SELECT_FROM_CURRENCY)
-    else:
-        # В других случаях просто сбрасываем состояние
-        await callback.message.edit_text(
-            "Операцію скасовано.\n\n"
-            "Ви можете створити нову заявку в будь-який час через меню '🔄 Обмін валют'."
-        )
-        await state.clear()
+    
+    elif action == "to" and current_state == ExchangeStates.SELECT_TO_CURRENCY:
+        currency_code = parts[2]
+        data = await state.get_data()
+        from_currency = data.get("from_currency")
+        
+        await state.update_data(to_currency=currency_code)
+        
+        # Get exchange rate
+        rate = await get_exchange_rate(engine, from_currency, currency_code)
+        
+        if rate:
+            await state.update_data(rate=rate)
+            await state.set_state(ExchangeStates.ENTER_AMOUNT)
+            
+            await callback.message.edit_text(
+                f"Обмін {from_currency} → {currency_code}\n"
+                f"Поточний курс: 1 {from_currency} = {rate:.2f} {currency_code}\n\n"
+                f"Введіть суму {from_currency}, яку хочете обміняти:",
+                reply_markup=None
+            )
+        else:
+            await callback.message.edit_text(
+                f"На жаль, обмін {from_currency} → {currency_code} тимчасово недоступний.\n"
+                f"Спробуйте вибрати інші валюти.",
+                reply_markup=get_currencies_selection("from")
+            )
+            await state.set_state(ExchangeStates.SELECT_FROM_CURRENCY)
+    
+    await callback.answer()
 
-def setup(dp: Dispatcher):
-    """Регистрация обработчиков"""
-    # Команды меню
-    dp.message.register(start_exchange, Text(text="🔄 Обмін валют"))
+
+@router.message(ExchangeStates.ENTER_AMOUNT)
+@handle_errors
+async def process_amount(message: types.Message, state: FSMContext, engine):
+    """Process amount input"""
+    try:
+        amount = float(message.text.replace(',', '.'))
+        if amount <= 0:
+            raise ValueError("Amount must be positive")
+    except ValueError:
+        await message.answer("Будь ласка, введіть коректну суму у вигляді числа (наприклад, 100 або 100.50).")
+        return
     
-    # Обработчики процесса создания заявки
-    dp.callback_query.register(process_from_currency, 
-                               lambda c: c.data.startswith("currency:from:"), 
-                               ExchangeStates.SELECT_FROM_CURRENCY)
+    data = await state.get_data()
+    from_currency = data.get("from_currency")
+    to_currency = data.get("to_currency")
+    rate = data.get("rate")
     
-    dp.callback_query.register(process_to_currency, 
-                               lambda c: c.data.startswith("currency:to:"), 
-                               ExchangeStates.SELECT_TO_CURRENCY)
+    amount_to = amount * rate
     
-    dp.message.register(process_amount, ExchangeStates.ENTER_AMOUNT)
+    await state.update_data(amount_from=amount, amount_to=amount_to)
     
-    dp.callback_query.register(process_bank_selection, 
-                              lambda c: c.data.startswith("bank:") and not c.data.endswith(":back"), 
-                              ExchangeStates.SELECT_BANK)
+    # Check if we need to select a bank (for fiat currencies)
+    if to_currency == "UAH":
+        banks = await get_banks_for_currency(engine, to_currency)
+        if banks:
+            await state.set_state(ExchangeStates.SELECT_BANK)
+            await message.answer(
+                f"Ви хочете обміняти {amount} {from_currency} на {amount_to:.2f} {to_currency}.\n\n"
+                f"Оберіть банк для отримання коштів:",
+                reply_markup=get_bank_selection()
+            )
+            return
     
-    dp.message.register(process_payment_details, ExchangeStates.ENTER_PAYMENT_DETAILS)
+    # If no bank selection needed, go to payment details
+    await state.set_state(ExchangeStates.ENTER_PAYMENT_DETAILS)
+    await message.answer(
+        f"Ви хочете обміняти {amount} {from_currency} на {amount_to:.2f} {to_currency}.\n\n"
+        f"Введіть реквізити для отримання {to_currency}:"
+    )
+
+
+@router.callback_query(ExchangeStates.SELECT_BANK, F.data.startswith("bank:"))
+@handle_errors
+async def process_bank_selection(callback: types.CallbackQuery, state: FSMContext, engine):
+    """Process bank selection"""
+    parts = callback.data.split(":")
+    action = parts[1]
     
-    dp.callback_query.register(confirm_order, 
-                              lambda c: c.data == "order:confirm", 
-                              ExchangeStates.CONFIRM_ORDER)
+    if action == "back":
+        await state.set_state(ExchangeStates.ENTER_AMOUNT)
+        data = await state.get_data()
+        from_currency = data.get("from_currency")
+        to_currency = data.get("to_currency")
+        rate = data.get("rate")
+        
+        await callback.message.edit_text(
+            f"Обмін {from_currency} → {to_currency}\n"
+            f"Поточний курс: 1 {from_currency} = {rate:.2f} {to_currency}\n\n"
+            f"Введіть суму {from_currency}, яку хочете обміняти:",
+            reply_markup=None
+        )
+        await callback.answer()
+        return
     
-    dp.callback_query.register(cancel_order, 
-                              lambda c: c.data == "order:cancel", 
-                              ExchangeStates.CONFIRM_ORDER)
+    bank_id = int(parts[1])
+    await state.update_data(bank_id=bank_id)
     
-    # Обработчики кнопок "Назад"
-    dp.callback_query.register(process_back_to_currencies, 
-                              lambda c: c.data == "currency:back")
+    with Session(engine) as session:
+        bank = session.query(Bank).filter(Bank.id == bank_id).first()
+        if bank:
+            await state.update_data(bank_name=bank.name)
     
-    dp.callback_query.register(process_back_to_currencies, 
-                              lambda c: c.data == "bank:back", 
-                              ExchangeStates.SELECT_BANK)
+    data = await state.get_data()
+    amount_from = data.get("amount_from")
+    amount_to = data.get("amount_to")
+    from_currency = data.get("from_currency")
+    to_currency = data.get("to_currency")
+    
+    await state.set_state(ExchangeStates.ENTER_PAYMENT_DETAILS)
+    await callback.message.edit_text(
+        f"Ви хочете обміняти {amount_from} {from_currency} на {amount_to:.2f} {to_currency}.\n"
+        f"Банк для отримання: {data.get('bank_name')}\n\n"
+        f"Введіть номер картки або реквізити для отримання коштів:",
+        reply_markup=None
+    )
+    await callback.answer()
+
+
+@router.message(ExchangeStates.ENTER_PAYMENT_DETAILS)
+@handle_errors
+async def process_payment_details(message: types.Message, state: FSMContext, db_user: dict, engine):
+    """Process payment details and create order"""
+    payment_details = message.text
+    
+    if len(payment_details) < 5:
+        await message.answer("Будь ласка, введіть детальніші реквізити для отримання коштів.")
+        return
+    
+    data = await state.get_data()
+    from_currency = data.get("from_currency")
+    to_currency = data.get("to_currency")
+    amount_from = data.get("amount_from")
+    amount_to = data.get("amount_to")
+    rate = data.get("rate")
+    bank_id = data.get("bank_id")
+    
+    from sqlalchemy.orm import Session
+    
+    with Session(engine) as session:
+        # Get currency objects
+        from_curr = session.query(Currency).filter(Currency.code == from_currency).first()
+        to_curr = session.query(Currency).filter(Currency.code == to_currency).first()
+        
+        if not from_curr or not to_curr:
+            await message.answer("Помилка при створенні заявки. Спробуйте пізніше.")
+            await state.clear()
+            return
+        
+        # Create new order
+        new_order = Order(
+            user_id=db_user['id'],
+            from_currency_id=from_curr.id,
+            to_currency_id=to_curr.id,
+            amount_from=amount_from,
+            amount_to=amount_to,
+            rate=rate,
+            status=OrderStatus.CREATED,
+            bank_id=bank_id,
+            details=payment_details
+        )
+        
+        session.add(new_order)
+        session.commit()
+        order_id = new_order.id
+    
+    # Clear state and send confirmation
+    await state.clear()
+    
+    # Send confirmation to user
+    confirmation_text = (
+        f"✅ <b>Заявка #{order_id} створена!</b>\n\n"
+        f"💱 Обмін: {amount_from} {from_currency} → {amount_to:.2f} {to_currency}\n"
+        f"📊 Курс: 1 {from_currency} = {rate:.2f} {to_currency}\n"
+    )
+    
+    if bank_id:
+        confirmation_text += f"🏦 Банк: {data.get('bank_name')}\n"
+    
+    confirmation_text += (
+        f"📝 Реквізити: {payment_details}\n\n"
+        f"Для завершення обміну вам потрібно буде відправити {amount_from} {from_currency} "
+        f"на вказані реквізити після підтвердження заявки менеджером.\n\n"
+        f"Статус заявки ви можете перевірити в розділі '📋 Історія'."
+    )
+    
+    await message.answer(
+        confirmation_text,
+        parse_mode="HTML",
+        reply_markup=get_order_actions(order_id, "created")
+    )
+    
+    # Notify managers about new order
+    # This should be implemented separately in your notification system
+
+
+# Add this to register all handlers with the main dispatcher
+def setup_exchange_handlers(dp):
+    dp.include_router(router)

@@ -13,13 +13,14 @@ def get_engine(db_url="sqlite:///changify.db"):
     """Создает и возвращает движок SQLAlchemy"""
     return create_engine(db_url, echo=False)
 
+def get_session(engine):
+    Session = sessionmaker(bind=engine)
+    return Session()
+
 def init_db(engine):
     Base.metadata.create_all(engine)
     logger.info("База данных инициализирована")
 
-def get_session(engine):
-    Session = sessionmaker(bind=engine)
-    return Session()
 
 def setup_initial_data(session):
     try:
@@ -48,8 +49,6 @@ def setup_initial_data(session):
         if session.query(Setting).count() == 0:
             settings = [
                 Setting(key="bot_name", value="Changify", description="Название бота"),
-                Setting(key="admin_chat_id", value="7459108907", description="ID чата администратора"),
-                Setting(key="manager_chat_id", value="771451766", description="ID чата менеджеров"),
                 Setting(key="welcome_message", value="Добро пожаловать в Changify! Бот для P2P-обмена криптовалют и фиатных валют.", description="Приветственное сообщение")
             ]
             session.add_all(settings)

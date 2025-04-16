@@ -1,7 +1,6 @@
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 
-
 def get_main_keyboard():
     """
     Створює основну клавіатуру для користувача
@@ -22,7 +21,6 @@ def get_main_keyboard():
     
     return builder.as_markup(resize_keyboard=True)
 
-
 def get_manager_keyboard():
     """
     Створює клавіатуру для менеджера
@@ -41,7 +39,6 @@ def get_manager_keyboard():
     
     return builder.as_markup(resize_keyboard=True)
 
-
 def get_admin_keyboard():
     """
     Створює клавіатуру для адміністратора
@@ -59,5 +56,20 @@ def get_admin_keyboard():
     )
     
     builder.row(KeyboardButton(text="📊 Статистика"))
+    
+    return builder.as_markup(resize_keyboard=True)
+
+def get_support_keyboard():
+    """
+    Створює клавіатуру для меню підтримки
+    """
+    builder = ReplyKeyboardBuilder()
+    
+    builder.row(
+        KeyboardButton(text="✉️ Новий запит"),
+        KeyboardButton(text="📋 Історія")
+    )
+    
+    builder.row(KeyboardButton(text="🔙 Назад"))
     
     return builder.as_markup(resize_keyboard=True)

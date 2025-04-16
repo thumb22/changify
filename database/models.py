@@ -1,4 +1,3 @@
-# database/models.py
 from datetime import datetime
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Text, Enum
 from sqlalchemy.orm import relationship, sessionmaker, declarative_base
@@ -23,6 +22,11 @@ class CurrencyType(enum.Enum):
     CRYPTO = "crypto"
     FIAT = "fiat"
 
+class SupportStatus(enum.Enum):  # Добавляем перечисление для статусов запросов в поддержку
+    PENDING = "pending"
+    ANSWERED = "answered"
+    CLOSED = "closed"
+
 class User(Base):
     __tablename__ = 'users'
     
@@ -37,6 +41,7 @@ class User(Base):
     
     orders = relationship("Order", back_populates="user", foreign_keys="Order.user_id")
     managed_orders = relationship("Order", back_populates="manager", foreign_keys="Order.manager_id")
+    support_requests = relationship("SupportRequest", back_populates="user")  # Связь с SupportRequest
     
     def __repr__(self):
         return f"<User(id={self.id}, telegram_id={self.telegram_id}, username={self.username})>"
@@ -45,9 +50,9 @@ class Currency(Base):
     __tablename__ = 'currencies'
     
     id = Column(Integer, primary_key=True)
-    code = Column(String(10), unique=True, nullable=False)  # USDT, USD, UAH
-    name = Column(String(50), nullable=False)  # Tether, US Dollar, Ukrainian Hryvnia
-    type = Column(Enum(CurrencyType), nullable=False)  # CRYPTO или FIAT
+    code = Column(String(10), unique=True, nullable=False)
+    name = Column(String(50), nullable=False)
+    type = Column(Enum(CurrencyType), nullable=False)
     enabled = Column(Boolean, default=True)
     
     def __repr__(self):
@@ -71,7 +76,7 @@ class ExchangeRate(Base):
     id = Column(Integer, primary_key=True)
     from_currency_id = Column(Integer, ForeignKey('currencies.id'), nullable=False)
     to_currency_id = Column(Integer, ForeignKey('currencies.id'), nullable=False)
-    rate = Column(Float, nullable=False)  # Курс обмена
+    rate = Column(Float, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow)
     
     from_currency = relationship("Currency", foreign_keys=[from_currency_id])
@@ -107,6 +112,21 @@ class Order(Base):
     def __repr__(self):
         return f"<Order(id={self.id}, user_id={self.user_id}, status={self.status})>"
 
+class SupportRequest(Base):  # Добавляем модель SupportRequest
+    __tablename__ = 'support_requests'
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    message = Column(Text, nullable=False)
+    status = Column(Enum(SupportStatus), default=SupportStatus.PENDING)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    answer = Column(Text, nullable=True)
+    
+    user = relationship("User", back_populates="support_requests")
+    
+    def __repr__(self):
+        return f"<SupportRequest(id={self.id}, user_id={self.user_id}, status={self.status})>"
+
 class Setting(Base):
     __tablename__ = 'settings'
     
@@ -123,10 +143,10 @@ class AuditLog(Base):
     
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    action = Column(String(50), nullable=False)  # Тип действия (create_order, update_rate, etc.)
-    entity_type = Column(String(50))  # Тип сущности (order, rate, user, etc.)
-    entity_id = Column(Integer)  # ID сущности
-    details = Column(Text)  # Детали действия
+    action = Column(String(50), nullable=False)
+    entity_type = Column(String(50))
+    entity_id = Column(Integer)
+    details = Column(Text)
     timestamp = Column(DateTime, default=datetime.utcnow)
     
     user = relationship("User")
