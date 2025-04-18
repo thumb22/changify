@@ -48,7 +48,12 @@ def format_order_text(order, user, from_currency, to_currency, bank) -> str:
         text += f"Банк: {bank.name}\n"
 
     text += (
-        f"Реквізити: <code>{order.details}</code>\n"
+        f"Реквізити клієнта: <code>{order.details}</code>\n"
+    )
+    if order.manager_payment_details:
+        text += f"Платіжні реквізити менеджера: <code>{order.manager_payment_details}</code>\n"
+
+    text += (
         f"Дата створення: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
         f"Статус: {order.status.value}\n"
     )
@@ -580,9 +585,9 @@ async def process_payment_details(message: types.Message, db_user: dict, session
         await state.clear()
         return
     
-    # Сохраняем введенные реквизиты
-    payment_details = message.text
-    order.payment_details = payment_details
+    # Сохраняем введенные реквизиты в новое поле
+    manager_payment_details = message.text
+    order.manager_payment_details = manager_payment_details
     session.commit()
     
     # Получаем данные для уведомления клиента
@@ -592,7 +597,7 @@ async def process_payment_details(message: types.Message, db_user: dict, session
     customer_notification = (
         f"✅ <b>Заявку #{order.id} прийнято!</b>\n\n"
         f"Для продовження, будь ласка, відправте {order.amount_from} {from_currency.code} на наступні реквізити:\n\n"
-        f"<code>{payment_details}</code>\n\n"
+        f"<code>{manager_payment_details}</code>\n\n"
         f"Після оплати натисніть кнопку 'Я оплатив' у деталях заявки."
     )
     

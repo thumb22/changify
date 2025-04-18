@@ -85,6 +85,7 @@ class Order(Base):
     
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    manager_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     from_currency_id = Column(Integer, ForeignKey('currencies.id'), nullable=False)
     to_currency_id = Column(Integer, ForeignKey('currencies.id'), nullable=False)
     amount_from = Column(Float, nullable=False)
@@ -93,12 +94,12 @@ class Order(Base):
     status = Column(Enum(OrderStatus), default=OrderStatus.CREATED)
     bank_id = Column(Integer, ForeignKey('banks.id'), nullable=True)
     details = Column(Text)
+    manager_payment_details = Column(Text, nullable=True)
     rejection_reason = Column(String, nullable=True)
     message_id = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=datetime.now(ZoneInfo("Europe/Kyiv")))
     updated_at = Column(DateTime, default=datetime.now(ZoneInfo("Europe/Kyiv")))
     completed_at = Column(DateTime)
-    manager_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     
     user = relationship("User", back_populates="orders", foreign_keys=[user_id])
     manager = relationship("User", back_populates="managed_orders", foreign_keys=[manager_id])
@@ -119,19 +120,3 @@ class Setting(Base):
     
     def __repr__(self):
         return f"<Setting(key={self.key}, value={self.value})>"
-
-class AuditLog(Base):
-    __tablename__ = 'audit_logs'
-    
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    action = Column(String(50), nullable=False)
-    entity_type = Column(String(50))
-    entity_id = Column(Integer)
-    details = Column(Text)
-    timestamp = Column(DateTime, default=datetime.now(ZoneInfo("Europe/Kyiv")))
-    
-    user = relationship("User")
-    
-    def __repr__(self):
-        return f"<AuditLog(id={self.id}, user_id={self.user_id}, action={self.action})>"
