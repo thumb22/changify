@@ -27,7 +27,7 @@ async def show_rates(message: types.Message, db_user: dict, session):
         await message.answer("На жаль, інформація про курси валют тимчасово недоступна.")
         return
     rates_text = "💹 <b>Поточні курси обміну</b>\n\n"
-    pairs = [("USDT", "UAH"), ("USD", "UAH"), ("USDT", "USD")]
+    pairs = [("USDT", "UAH"), ("UAH", "USDT")]
     for from_curr, to_curr in pairs:
         rate = await get_exchange_rate(session, from_curr, to_curr)
         if rate:

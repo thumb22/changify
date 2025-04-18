@@ -1,4 +1,3 @@
-# handlers/manager.py
 from aiogram import Router, F, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -72,16 +71,13 @@ def get_order_or_respond(callback: types.CallbackQuery, session, order_id: int):
         return None, callback.answer("Заявка не знайдена")
     return order, None
 
-
 @router.message(F.text == "📝 Заявки")
 @handle_errors
 async def cmd_orders(message: types.Message, db_user: dict, session):
-    """Show active orders for manager"""
     if not is_authorized(db_user['role']):
         await message.answer("Доступ заборонено. Ця функція доступна тільки для менеджерів.")
         return
     
-    # Get all active orders (created, awaiting_payment, payment_confirmed)
     active_statuses = [
         OrderStatus.CREATED, 
         OrderStatus.AWAITING_PAYMENT, 
@@ -101,25 +97,8 @@ async def cmd_orders(message: types.Message, db_user: dict, session):
         if not user or not from_currency or not to_currency:
             logger.warning(f"Пропущено заявку #{order.id} через відсутні дані.")
             continue
-
-        
-        # Format text for message
-        status_emoji = {
-            OrderStatus.CREATED: "🆕",
-            OrderStatus.AWAITING_PAYMENT: "⏳",
-            OrderStatus.PAYMENT_CONFIRMED: "✅",
-        }.get(order.status, "❓")
         
         order_text = format_order_text(order, user, from_currency, to_currency, bank)
-
-        
-        if bank:
-            order_text += f"Банк: {bank.name}\n"
-        
-        order_text += f"Реквізити: <code>{order.details}</code>\n"
-        order_text += f"Дата створення: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
-        order_text += f"Статус: {order.status.value}\n"
-        
         builder = InlineKeyboardBuilder()
         
         if order.status == OrderStatus.CREATED:
@@ -156,12 +135,14 @@ async def cmd_orders(message: types.Message, db_user: dict, session):
                 )
             )
         
-        await message.answer(order_text, reply_markup=builder.as_markup())
+        order_message = await message.answer(order_text, reply_markup=builder.as_markup())
+        order.message_id = order_message.message_id
+        session.commit()
 
 @router.callback_query(F.data.startswith("manager:accept:"))
 @handle_errors
-async def accept_order(callback: types.CallbackQuery, db_user: dict, session):
-    """Accept an order and set it to awaiting payment"""
+async def accept_order(callback: types.CallbackQuery, db_user: dict, session, state: FSMContext):
+    """Accept an order and prompt for payment details"""
     if not is_authorized(db_user['role']):
         await callback.answer("Доступ заборонено")
         return
@@ -181,41 +162,27 @@ async def accept_order(callback: types.CallbackQuery, db_user: dict, session):
     order.status = OrderStatus.AWAITING_PAYMENT
     order.manager_id = db_user['telegram_id']
     order.updated_at = datetime.now(ZoneInfo("Europe/Kyiv"))
-    
-    # Get payment info (this would typically be your company's wallet or bank account)
-    from_currency = session.query(Currency).filter_by(id=order.from_currency_id).first()
-    payment_info = "USDT TRC20: TVN37WBipHFz1SHZw8rPLNZLhTwRXTvpPu"  # Example payment details
-    
-    # Save the payment info to the order
-    order.payment_details = payment_info
     session.commit()
     
-    # Notify customer
-    user = session.query(User).filter_by(telegram_id=order.user_id).first()
+    # Сохраняем order_id в FSM для последующей обработки
+    await state.update_data(order_id=order_id)
+    await state.set_state(ManagerStates.awaiting_payment_details)
     
-    customer_notification = (
-        f"✅ <b>Заявку #{order.id} прийнято!</b>\n\n"
-        f"Для продовження, будь ласка, відправте {order.amount_from} {from_currency.code} на наступні реквізити:\n\n"
-        f"<code>{payment_info}</code>\n\n"
-        f"Після оплати натисніть кнопку 'Я оплатив' у деталях заявки."
+    # Запрашиваем у менеджера реквизиты
+    await callback.message.answer(
+        "Будь ласка, введіть платіжні реквізити для цієї заявки:",
+        reply_markup=types.ReplyKeyboardMarkup(
+            keyboard=[[types.KeyboardButton(text="🔙 Скасувати введення реквізитів")]],
+            resize_keyboard=True
+        )
     )
     
-    try:
-        await notify_user(
-            bot=callback.bot,
-            telegram_id=user.telegram_id,
-            text=customer_notification,
-            reply_markup=get_order_actions(order.id, OrderStatus.AWAITING_PAYMENT.value)
-        )
-    except Exception as e:
-        logger.error(f"Failed to send notification to user {user.telegram_id}: {e}")
-    
     await callback.message.edit_text(
-        f"{callback.message.text}\n\n✅ Заявку прийнято. Клієнту надіслано реквізити для оплати.",
+        f"{callback.message.text}\n\n⏳ Очікується введення платіжних реквізитів.",
         reply_markup=None
     )
     
-    await callback.answer("Заявку прийнято")
+    await callback.answer("Введіть реквізити")
 
 @router.callback_query(F.data.startswith("manager:confirm_payment:"))
 @handle_errors
@@ -327,8 +294,8 @@ async def complete_order(callback: types.CallbackQuery, db_user: dict, session):
 
 @router.callback_query(F.data.startswith("manager:reject:"))
 @handle_errors
-async def reject_order(callback: types.CallbackQuery, db_user: dict, session):
-    """Reject or cancel an order"""
+async def reject_order(callback: types.CallbackQuery, db_user: dict, session, state: FSMContext):
+    """Initiate rejection of an order and prompt for a comment"""
     if not is_authorized(db_user['role']):
         await callback.answer("Доступ заборонено")
         return
@@ -344,7 +311,50 @@ async def reject_order(callback: types.CallbackQuery, db_user: dict, session):
         await callback.answer(f"Заявка вже в кінцевому статусі: {order.status.value}")
         return
     
-    # Update order status
+    await state.update_data(order_id=order_id)
+    await state.set_state(ManagerStates.awaiting_rejection_comment)
+    
+    await callback.message.answer(
+        "Будь ласка, вкажіть причину відхилення заявки:",
+        reply_markup=types.ReplyKeyboardMarkup(
+            keyboard=[[types.KeyboardButton(text="🔙 Скасувати відхилення")]],
+            resize_keyboard=True
+        )
+    )
+    
+    await callback.answer()
+
+@router.message(ManagerStates.awaiting_rejection_comment)
+@handle_errors
+async def process_rejection_comment(message: types.Message, db_user: dict, session, state: FSMContext):
+    """Process the rejection comment and finalize order cancellation"""
+    if not is_authorized(db_user['role']):
+        await message.answer("Доступ заборонено.")
+        return
+    
+    # Get order_id from FSM context
+    data = await state.get_data()
+    order_id = data.get("order_id")
+    
+    if not order_id:
+        await message.answer("Помилка: ID заявки не знайдено.")
+        await state.clear()
+        return
+    
+    order = session.query(Order).filter_by(id=order_id).first()
+    if not order:
+        await message.answer("Заявка не знайдена.")
+        await state.clear()
+        return
+    
+    if message.text == "🔙 Скасувати відхилення":
+        await message.answer("Відхилення заявки скасовано.", reply_markup=get_manager_keyboard())
+        await state.clear()
+        return
+    
+    # Store the rejection comment
+    rejection_reason = message.text
+    order.rejection_reason = rejection_reason
     order.status = OrderStatus.CANCELLED
     order.updated_at = datetime.now(ZoneInfo("Europe/Kyiv"))
     session.commit()
@@ -354,11 +364,12 @@ async def reject_order(callback: types.CallbackQuery, db_user: dict, session):
     
     customer_notification = (
         f"❌ <b>Заявку #{order.id} скасовано</b>\n\n"
+        f"Причина: {rejection_reason}\n\n"
         f"Якщо у вас виникли питання, зверніться до підтримки через меню 'Підтримка'."
     )
     
     try:
-        await callback.bot.send_message(
+        await message.bot.send_message(
             chat_id=user.telegram_id,
             text=customer_notification,
             parse_mode="HTML"
@@ -366,13 +377,25 @@ async def reject_order(callback: types.CallbackQuery, db_user: dict, session):
     except Exception as e:
         logger.error(f"Failed to send notification to user {user.telegram_id}: {e}")
     
-    # Update the callback message
-    await callback.message.edit_text(
-        f"{callback.message.text}\n\n❌ Заявку скасовано. Клієнта повідомлено.",
-        reply_markup=None
+    # Update the original order message
+    try:
+        await message.bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=order.message_id if hasattr(order, 'message_id') else message.message_id,
+            text=f"{format_order_text(order, user, *get_order_related_data(order, session)[1:])}\n\n❌ Заявку скасовано. Причина: {rejection_reason}",
+            parse_mode="HTML",
+            reply_markup=None
+        )
+    except Exception as e:
+        logger.error(f"Failed to edit original message for order {order.id}: {e}")
+    
+    await message.answer(
+        f"✅ Заявку #{order.id} скасовано. Клієнта повідомлено.",
+        reply_markup=get_manager_keyboard()
     )
     
-    await callback.answer("Заявку скасовано")
+    # Clear FSM state
+    await state.clear()
 
 @router.message(F.text == "✅ Завершені")
 @handle_errors
@@ -450,10 +473,7 @@ async def cmd_reply_to_user(message: types.Message, db_user: dict, session):
             reply_markup=keyboard
         )
         
-        # We don't try to directly modify the FSM state here
-        # The user's state will be properly set when they respond to this message
-        
-        await message.answer(f"✅ Повідомлення успішно відправлено користувачу {user_id}. "
+        await message.answer(f"✅ Повідомлення успішDoppelgänger successfully sent the message to user {user_id}. "
                              f"Користувач може відповідати безпосередньо.")
         
     except Exception as e:
@@ -496,9 +516,6 @@ async def cmd_close_chat(message: types.Message, db_user: dict, session):
             reply_markup=get_main_keyboard()
         )
         
-        # We don't try to directly modify Redis storage
-        # Instead, we rely on the user's next interaction with the bot
-        
         # Notify other managers that this chat was closed
         manager_name = message.from_user.first_name or ""
         manager_username = message.from_user.username or "немає"
@@ -526,6 +543,88 @@ async def cmd_close_chat(message: types.Message, db_user: dict, session):
         
     except Exception as e:
         await message.answer(f"❌ Помилка при закритті чату: {e}")
+
+@router.message(ManagerStates.awaiting_payment_details)
+@handle_errors
+async def process_payment_details(message: types.Message, db_user: dict, session, state: FSMContext):
+    """Process the payment details provided by the manager"""
+    if not is_authorized(db_user['role']):
+        await message.answer("Доступ заборонено.")
+        return
+    
+    # Получаем order_id из FSM
+    data = await state.get_data()
+    order_id = data.get("order_id")
+    
+    if not order_id:
+        await message.answer("Помилка: ID заявки не знайдено.")
+        await state.clear()
+        return
+    
+    order = session.query(Order).filter_by(id=order_id).first()
+    if not order:
+        await message.answer("Заявка не знайдена.")
+        await state.clear()
+        return
+    
+    if message.text == "🔙 Скасувати введення реквізитів":
+        # Возвращаем заявку в статус CREATED и очищаем менеджера
+        order.status = OrderStatus.CREATED
+        order.manager_id = None
+        session.commit()
+        
+        await message.answer(
+            "Введення реквізитів скасовано. Заявка повернута до статусу 'Створена'.",
+            reply_markup=get_manager_keyboard()
+        )
+        await state.clear()
+        return
+    
+    # Сохраняем введенные реквизиты
+    payment_details = message.text
+    order.payment_details = payment_details
+    session.commit()
+    
+    # Получаем данные для уведомления клиента
+    user = session.query(User).filter_by(telegram_id=order.user_id).first()
+    from_currency = session.query(Currency).filter_by(id=order.from_currency_id).first()
+    
+    customer_notification = (
+        f"✅ <b>Заявку #{order.id} прийнято!</b>\n\n"
+        f"Для продовження, будь ласка, відправте {order.amount_from} {from_currency.code} на наступні реквізити:\n\n"
+        f"<code>{payment_details}</code>\n\n"
+        f"Після оплати натисніть кнопку 'Я оплатив' у деталях заявки."
+    )
+    
+    try:
+        await notify_user(
+            bot=message.bot,
+            telegram_id=user.telegram_id,
+            text=customer_notification,
+            reply_markup=get_order_actions(order.id, OrderStatus.AWAITING_PAYMENT.value)
+        )
+    except Exception as e:
+        logger.error(f"Failed to send notification to user {user.telegram_id}: {e}")
+    
+    # Обновляем сообщение в чате менеджера
+    try:
+        await message.bot.edit_message_text(
+            chat_id=message.chat.id,
+            message_id=order.message_id if hasattr(order, 'message_id') else message.message_id,
+            text=f"{format_order_text(order, user, *get_order_related_data(order, session)[1:])}\n\n✅ Заявку прийнято. Клієнту надіслано реквізити.",
+            parse_mode="HTML",
+            reply_markup=None
+        )
+    except Exception as e:
+        logger.error(f"Failed to edit original message for order {order.id}: {e}")
+    
+    await message.answer(
+        f"✅ Реквізити для заявки #{order.id} збережено та надіслано клієнту.",
+        reply_markup=get_manager_keyboard()
+    )
+    
+    # Очищаем состояние
+    await state.clear()
 
 def setup(dp):
     dp.include_router(router)

@@ -6,7 +6,7 @@ def get_currencies_selection(from_to="from", selected_currency=None):
     
     currencies = [
         {"code": "USDT", "symbol": "₮"},
-        {"code": "USD", "symbol": "$"},
+        # {"code": "USD", "symbol": "$"},
         {"code": "UAH", "symbol": "₴"}
     ]
     

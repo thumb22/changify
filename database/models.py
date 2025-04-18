@@ -72,7 +72,7 @@ class ExchangeRate(Base):
     from_currency_id = Column(Integer, ForeignKey('currencies.id'), nullable=False)
     to_currency_id = Column(Integer, ForeignKey('currencies.id'), nullable=False)
     rate = Column(Float, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.now(ZoneInfo("Europe/Kyiv")))
     
     from_currency = relationship("Currency", foreign_keys=[from_currency_id])
     to_currency = relationship("Currency", foreign_keys=[to_currency_id])
@@ -93,8 +93,10 @@ class Order(Base):
     status = Column(Enum(OrderStatus), default=OrderStatus.CREATED)
     bank_id = Column(Integer, ForeignKey('banks.id'), nullable=True)
     details = Column(Text)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    rejection_reason = Column(String, nullable=True)
+    message_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.now(ZoneInfo("Europe/Kyiv")))
+    updated_at = Column(DateTime, default=datetime.now(ZoneInfo("Europe/Kyiv")))
     completed_at = Column(DateTime)
     manager_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     
@@ -113,7 +115,7 @@ class Setting(Base):
     key = Column(String(50), primary_key=True)
     value = Column(Text, nullable=False)
     description = Column(Text)
-    updated_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.now(ZoneInfo("Europe/Kyiv")))
     
     def __repr__(self):
         return f"<Setting(key={self.key}, value={self.value})>"
@@ -127,7 +129,7 @@ class AuditLog(Base):
     entity_type = Column(String(50))
     entity_id = Column(Integer)
     details = Column(Text)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=datetime.now(ZoneInfo("Europe/Kyiv")))
     
     user = relationship("User")
     
