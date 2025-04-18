@@ -1,10 +1,14 @@
 from aiogram import F, Dispatcher, types
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
+from config import MANAGER_IDS
 from database.models import Order, OrderStatus, User, Currency, Bank
 from sqlalchemy import desc
 from database.db_operations import get_session
 from datetime import datetime
+
+from keyboards.inline import get_order_actions
+from utils import logger
 
 async def show_user_orders(message: types.Message):
     """Показывает историю заявок пользователя"""
@@ -140,7 +144,6 @@ async def show_order_details(callback: types.CallbackQuery):
                 "3. Дочекайтесь підтвердження від менеджера"
             )
         
-        # Создаем клавиатуру с действиями
         builder = InlineKeyboardBuilder()
         
         if order.status == OrderStatus.AWAITING_PAYMENT:
@@ -194,9 +197,38 @@ async def mark_order_as_paid(callback: types.CallbackQuery, session):
             "Наш менеджер перевірить оплату та підтвердить заявку.\n"
             "Ми повідомимо вас про зміну статусу."
         )
-        
-        # Отправляем уведомление менеджерам
-        # Здесь должен быть код отправки уведомления
+
+        user = session.query(User).filter(User.telegram_id == order.user_id).first()
+        bank = session.query(Bank).filter(Bank.id == order.bank_id).first() if order.bank_id else None
+        from_curr = session.query(Currency).filter(Currency.id == order.from_currency_id).first()
+        to_curr = session.query(Currency).filter(Currency.id == order.to_currency_id).first()
+
+        # Текст уведомления менеджеру
+        notify_text = (
+            f"💰 <b>Клієнт підтвердив оплату по заявці #{order_id}</b>\n\n"
+            f"👤 {user.first_name or ''} {user.last_name or ''} "
+            f"(@{user.username or 'немає'}, ID: {user.telegram_id})\n"
+            f"💱 Обмін: {order.amount_from} {from_curr.code} → {order.amount_to:.2f} {to_curr.code}\n"
+            f"📊 Курс: 1 {from_curr.code} = {order.rate:.2f} {to_curr.code}\n"
+        )
+        if bank:
+            notify_text += f"🏦 Банк: {bank.name}\n"
+
+        notify_text += (
+            f"📝 Реквізити: <code>{order.details}</code>\n"
+            f"📅 Дата створення: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            f"⏳ Новий статус: {order.status.value}"
+        )
+
+        for manager_id in MANAGER_IDS:
+            try:
+                await callback.bot.send_message(manager_id, notify_text, parse_mode="HTML")
+            except Exception as e:
+                logger.error(f"Не вдалося повідомити менеджера {manager_id}: {e}")
+
+        await callback.message.edit_reply_markup(reply_markup=get_order_actions(order_id, "paid"))
+        await callback.answer("Дякуємо! Менеджер буде повідомлений про оплату.")
+
     
     except Exception as e:
         await callback.message.answer(f"Помилка при оновленні статусу заявки: {e}")

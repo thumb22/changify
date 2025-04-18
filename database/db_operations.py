@@ -37,7 +37,11 @@ def setup_initial_data(session):
         
         uah = session.query(Currency).filter_by(code="UAH").first()
         
-        set_exchange_rate(session, "USDT", "UAH", 41.29 + (0.01 * 41.29))
+        usdt_to_uah_rate = 41.29 + (0.01 * 41.29)
+        set_exchange_rate(session, "USDT", "UAH", usdt_to_uah_rate)
+    
+        uah_to_usdt_rate = 1 / usdt_to_uah_rate
+        set_exchange_rate(session, "UAH", "USDT", uah_to_usdt_rate)
         
         if uah and session.query(Bank).count() == 0:
             banks = [

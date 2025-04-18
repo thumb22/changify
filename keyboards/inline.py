@@ -66,7 +66,6 @@ def get_order_actions(order_id, status):
     
     if status == "created":
         builder.row(
-            InlineKeyboardButton(text="✅ Підтвердити", callback_data=f"order:confirm:{order_id}"),
             InlineKeyboardButton(text="❌ Скасувати", callback_data=f"order:cancel:{order_id}")
         )
     elif status == "awaiting_payment":

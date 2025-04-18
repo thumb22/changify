@@ -2,9 +2,11 @@ from aiogram import Router, F, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
+from config import MANAGER_IDS
 from keyboards.reply import get_main_keyboard
 from keyboards.inline import get_currencies_selection, get_bank_selection, get_order_actions
 from states.exchange import ExchangeStates
+from utils import logger
 from utils.error_handler import handle_errors
 from utils.db_utils import get_exchange_rate, get_banks_for_currency
 from database.models import Order, OrderStatus, Currency, Bank, User
@@ -199,7 +201,39 @@ async def process_payment_details(message: types.Message, state: FSMContext, db_
     session.add(new_order)
     session.commit()
     order_id = new_order.id
-    
+
+    # Получаем объекты для уведомления менеджера
+    user = session.query(User).filter(User.telegram_id == db_user['telegram_id']).first()
+    bank = session.query(Bank).filter(Bank.id == bank_id).first() if bank_id else None
+
+    # Формируем текст для менеджера
+    manager_text = (
+        f"🆕 <b>Нова заявка #{order_id}</b>\n\n"
+        f"👤 Користувач: {user.first_name or ''} {user.last_name or ''} "
+        f"(@{user.username or 'немає'}, ID: {user.telegram_id})\n"
+        f"💱 Обмін: {amount_from} {from_currency} → {amount_to:.2f} {to_currency}\n"
+        f"📊 Курс: 1 {from_currency} = {rate:.2f} {to_currency}\n"
+    )
+    if bank:
+        manager_text += f"🏦 Банк: {bank.name}\n"
+
+    manager_text += (
+        f"📝 Реквізити: <code>{payment_details}</code>\n"
+        f"📅 Дата: {new_order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+        f"⏳ Статус: {new_order.status.value}"
+    )
+
+    for manager_id in MANAGER_IDS:
+        try:
+            await message.bot.send_message(
+                chat_id=manager_id,
+                text=manager_text,
+                parse_mode="HTML"
+            )
+        except Exception as e:
+            logger.error(f"Не вдалося надіслати заявку менеджеру {manager_id}: {e}")
+
+        
     # Clear state and send confirmation
     await state.clear()
     
