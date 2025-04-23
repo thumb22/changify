@@ -1,4 +1,4 @@
-from . import user, profile, support, orders, exchange, manager
+from . import user, profile, support, orders, exchange, manager, admin
 def setup_handlers(dp):
     user.setup(dp)
     profile.setup(dp)
@@ -6,3 +6,4 @@ def setup_handlers(dp):
     orders.setup(dp)
     exchange.setup(dp)
     manager.setup(dp)
+    admin.setup(dp)
