@@ -1,5 +1,5 @@
 import asyncio
-from aiogram import F, Bot, Dispatcher, Router, types
+from aiogram import Bot, Dispatcher, Router, types
 from aiogram.filters import Command
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.enums import ParseMode

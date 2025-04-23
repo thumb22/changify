@@ -4,7 +4,7 @@ from aiogram.fsm.context import FSMContext
 from keyboards.inline import get_currencies_selection, get_pagination_keyboard
 from states.exchange import ExchangeStates
 from utils.error_handler import handle_errors
-from utils.db_utils import get_all_currencies, get_exchange_rate, get_banks_for_currency
+from utils.db_utils import get_all_currencies, get_exchange_rate
 from keyboards.reply import get_support_keyboard
 from states.support import SupportStates
 router = Router()

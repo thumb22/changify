@@ -25,9 +25,6 @@ elif DB_ENGINE == 'postgresql':
 else:
     DATABASE_URL = f"sqlite:///{BASE_DIR / DB_NAME}"
 
-EXCHANGE_API_KEY = os.getenv('EXCHANGE_API_KEY', '')
-EXCHANGE_API_URL = os.getenv('EXCHANGE_API_URL', '')
-
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 LOG_FILE = os.getenv('LOG_FILE', 'bot.log')
 
