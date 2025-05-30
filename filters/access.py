@@ -6,9 +6,6 @@ import logging
 logger = logging.getLogger(__name__)
 
 class AdminFilter(BaseFilter):
-    """
-    Фильтр для проверки прав администратора
-    """
     async def __call__(self, event):
         if isinstance(event, Message) or isinstance(event, CallbackQuery):
             if not hasattr(event, 'db_user'):
@@ -19,9 +16,6 @@ class AdminFilter(BaseFilter):
         return False
 
 class ManagerFilter(BaseFilter):
-    """
-    Фильтр для проверки прав менеджера (менеджер или администратор)
-    """
     async def __call__(self, event):
         if isinstance(event, Message) or isinstance(event, CallbackQuery):
             if not hasattr(event, 'db_user'):
@@ -32,9 +26,6 @@ class ManagerFilter(BaseFilter):
         return False
 
 class UserFilter(BaseFilter):
-    """
-    Фильтр для проверки прав обычного пользователя
-    """
     async def __call__(self, event):
         if isinstance(event, Message) or isinstance(event, CallbackQuery):
             if not hasattr(event, 'db_user'):

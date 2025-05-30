@@ -2,6 +2,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, ForeignKey, Text, Enum
 from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy.sql import func
 import enum
 
 Base = declarative_base()
@@ -32,8 +33,8 @@ class User(Base):
     first_name = Column(String(50), nullable=True)
     last_name = Column(String(50), nullable=True)
     role = Column(Enum(UserRole), default=UserRole.USER)
-    created_at = Column(DateTime, default=datetime.now(ZoneInfo("Europe/Kyiv")))
-    last_active = Column(DateTime, default=datetime.now(ZoneInfo("Europe/Kyiv")))
+    created_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Europe/Kyiv")))
+    last_active = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Europe/Kyiv")))
     
     orders = relationship("Order", back_populates="user", foreign_keys="Order.user_id")
     managed_orders = relationship("Order", back_populates="manager", foreign_keys="Order.manager_id")
@@ -72,7 +73,7 @@ class ExchangeRate(Base):
     from_currency_id = Column(Integer, ForeignKey('currencies.id'), nullable=False)
     to_currency_id = Column(Integer, ForeignKey('currencies.id'), nullable=False)
     rate = Column(Float, nullable=False)
-    updated_at = Column(DateTime, default=datetime.now(ZoneInfo("Europe/Kyiv")))
+    updated_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Europe/Kyiv")))
     
     from_currency = relationship("Currency", foreign_keys=[from_currency_id])
     to_currency = relationship("Currency", foreign_keys=[to_currency_id])
@@ -97,8 +98,8 @@ class Order(Base):
     manager_payment_details = Column(Text, nullable=True)
     rejection_reason = Column(String, nullable=True)
     message_id = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=datetime.now(ZoneInfo("Europe/Kyiv")))
-    updated_at = Column(DateTime, default=datetime.now(ZoneInfo("Europe/Kyiv")))
+    created_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Europe/Kyiv")))
+    updated_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Europe/Kyiv")))
     completed_at = Column(DateTime)
     
     user = relationship("User", back_populates="orders", foreign_keys=[user_id])
@@ -116,7 +117,7 @@ class Setting(Base):
     key = Column(String(50), primary_key=True)
     value = Column(Text, nullable=False)
     description = Column(Text)
-    updated_at = Column(DateTime, default=datetime.now(ZoneInfo("Europe/Kyiv")))
+    updated_at = Column(DateTime, default=lambda: datetime.now(ZoneInfo("Europe/Kyiv")))
     
     def __repr__(self):
         return f"<Setting(key={self.key}, value={self.value})>"

@@ -1,4 +1,3 @@
-# init_database.py
 import os
 import sys
 import logging

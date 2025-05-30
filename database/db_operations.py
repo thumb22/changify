@@ -11,7 +11,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 def get_engine(db_url="sqlite:///changify.db"):
-    """Создает и возвращает движок SQLAlchemy"""
     return create_engine(db_url, echo=False)
 
 def get_session(engine):
@@ -68,7 +67,6 @@ def setup_initial_data(session):
         raise
 
 def create_admin_user(session, telegram_id, username=None, first_name=None, last_name=None):
-    """Создает пользователя с правами администратора"""
     try:
         user = session.query(User).filter_by(telegram_id=telegram_id).first()
         
