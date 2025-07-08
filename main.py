@@ -45,7 +45,7 @@ async def cmd_start(message: types.Message, db_user: dict):
         keyboard = get_main_keyboard()
     await message.answer(
         f"👋 Привіт, {message.from_user.first_name}!\n\n"
-        f"Ласкаво просимо до Changify - бота для P2P-обміну криптовалют та фіатних валют.\n\n"
+        f"Ласкаво просимо до Aterika - бота для P2P-обміну криптовалют та фіатних валют.\n\n"
         f"Щоб почати, оберіть потрібну дію в меню.",
         reply_markup=keyboard
     )
