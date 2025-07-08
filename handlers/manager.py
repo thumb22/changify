@@ -11,7 +11,7 @@ from keyboards.inline import get_order_actions
 from keyboards.reply import get_main_keyboard, get_manager_keyboard
 from states.manager import ManagerStates
 from utils.error_handler import handle_errors
-from database.models import Order, OrderStatus, User, UserRole, Currency, Bank, ExchangeRate
+from database.models import ORDER_STATUS_LABELS, Order, OrderStatus, User, UserRole, Currency, Bank, ExchangeRate
 import logging
 
 router = Router()
@@ -55,7 +55,7 @@ def format_order_text(order, user, from_currency, to_currency, bank) -> str:
 
     text += (
         f"Дата створення: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
-        f"Статус: {order.status.value}\n"
+        f"Статус: {ORDER_STATUS_LABELS[order.status]}\n"
     )
     return text
 

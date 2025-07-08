@@ -20,6 +20,15 @@ class OrderStatus(enum.Enum):
     COMPLETED = "completed"
     CANCELLED = "cancelled"
 
+ORDER_STATUS_LABELS = {
+    OrderStatus.CREATED: "Створено",
+    OrderStatus.AWAITING_PAYMENT: "Очікує оплати",
+    OrderStatus.PAYMENT_CONFIRMED: "Оплату підтверджено",
+    OrderStatus.PROCESSING: "В обробці",
+    OrderStatus.COMPLETED: "Завершено",
+    OrderStatus.CANCELLED: "Скасовано"
+}
+
 class CurrencyType(enum.Enum):
     CRYPTO = "crypto"
     FIAT = "fiat"

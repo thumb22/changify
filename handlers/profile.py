@@ -3,6 +3,7 @@ from aiogram import Router, F, types
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 
+from database.models import ORDER_STATUS_LABELS
 from keyboards.reply import get_main_keyboard
 from states.profile import ProfileStates
 from utils.error_handler import handle_errors
@@ -42,7 +43,7 @@ async def cmd_profile(message: types.Message, db_user: dict, session):
             from_curr = order.from_currency.code
             to_curr = order.to_currency.code
             profile_text += f"{i}. {from_curr} → {to_curr} ({order.amount_from} {from_curr})\n"
-            profile_text += f"   Статус: {order.status.value}, Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+            profile_text += f"   Статус: {ORDER_STATUS_LABELS[order.status]}, Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n"
     
     await message.answer(
         profile_text,

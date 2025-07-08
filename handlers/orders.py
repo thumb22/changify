@@ -2,7 +2,7 @@ from aiogram import F, Dispatcher, types
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
 from config import MANAGER_IDS
-from database.models import Order, OrderStatus, User, Currency, Bank
+from database.models import ORDER_STATUS_LABELS, Order, OrderStatus, User, Currency, Bank
 from sqlalchemy import desc
 from database.db_operations import get_session
 from datetime import datetime
@@ -44,21 +44,12 @@ async def show_user_orders(message: types.Message):
                 OrderStatus.COMPLETED: "✅",
                 OrderStatus.CANCELLED: "❌"
             }
-            
-            status_text = {
-                OrderStatus.CREATED: "Створено",
-                OrderStatus.AWAITING_PAYMENT: "Очікує оплати",
-                OrderStatus.PAYMENT_CONFIRMED: "Оплату підтверджено",
-                OrderStatus.PROCESSING: "В обробці",
-                OrderStatus.COMPLETED: "Завершено",
-                OrderStatus.CANCELLED: "Скасовано"
-            }
-            
+
             text += (
                 f"<b>Заявка #{order.id}</b> ({order.created_at.strftime('%d.%m.%Y %H:%M')})\n"
                 f"Напрямок: {from_currency.code} → {to_currency.code}\n"
                 f"Сума: {order.amount_from:.2f} {from_currency.code} → {order.amount_to:.2f} {to_currency.code}\n"
-                f"Статус: {status_emoji.get(order.status, '❓')} {status_text.get(order.status, 'Невідомо')}\n\n"
+                f"Статус: {status_emoji.get(order.status, '❓')} {ORDER_STATUS_LABELS[order.status]}\n\n"
             )
             
             # Добавляем кнопки действий для активных заявок
@@ -132,7 +123,7 @@ async def show_order_details(callback: types.CallbackQuery):
         if order.details:
             text += f"Реквізити: <code>{order.details}</code>\n"
         
-        text += f"Статус: {status_text.get(order.status, 'Невідомо')}\n"
+        text += f"Статус: {ORDER_STATUS_LABELS[order.status]}\n"
         
         # Добавляем инструкции в зависимости от статуса
         if order.status == OrderStatus.AWAITING_PAYMENT:

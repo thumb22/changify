@@ -1,6 +1,7 @@
 from aiogram import Router, F, types
 from aiogram.fsm.context import FSMContext
 
+from database.models import ORDER_STATUS_LABELS
 from keyboards.inline import get_currencies_selection, get_pagination_keyboard
 from states.exchange import ExchangeStates
 from utils.error_handler import handle_errors
@@ -59,7 +60,7 @@ async def show_history(message: types.Message, db_user: dict, session):
             f"💱 {order.amount_from} {order.from_currency.code} → "
             f"{order.amount_to} {order.to_currency.code}\n"
             f"📊 Курс: {order.rate:.2f}\n"
-            f"📑 Статус: {order.status.value}\n\n"
+            f"📑 Статус: {ORDER_STATUS_LABELS[order.status]}\n\n"
         )
     await message.answer(
         history_text,
